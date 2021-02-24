@@ -54,9 +54,15 @@ export default class LoopList extends cc.Component {
     /**全局虚拟index */
     private fictitousCenterIndex = 0;
 
+    /**全局最大的虚拟Index */
+    private fictitousMaxIndex = 0;
+    /**全局最小的虚拟Index */
+    private fictitousMinIndex = 0;
+
     /**滑动时记录的index */
     private swipeIndex = 0;
 
+    /**测试数据 */
     private testData: string[] = [];
 
     onLoad() {
@@ -94,6 +100,8 @@ export default class LoopList extends cc.Component {
 
         //设置开始记录的index
         this.curCenterIndex = 0;
+        this.fictitousMaxIndex = this.showCount - 1;
+        this.fictitousMinIndex = 0;
 
         //实例化
         let prefab = this.itemPrefab;
@@ -101,8 +109,11 @@ export default class LoopList extends cc.Component {
             let child = cc.instantiate(prefab);
             this.contentContainer.addChild(child);
             //设置进度位置
+            let progressPos = 0.5 + i / this.showCount;
             let cellItem = child.getComponent(CellItem);
-            cellItem.init(this, 0.5 + i / this.showCount, i);
+            cellItem.init(this, progressPos, i);
+            //设置数据文本
+            cellItem.label.string = `index:(${i})`;
             cellItem.l2.string = this.testData[i];
 
             this.cellItemList.push(cellItem);
@@ -128,26 +139,46 @@ export default class LoopList extends cc.Component {
         let turnPage = Math.floor(this.curCenterIndex - lastIndex);
 
         this.fictitousCenterIndex = this.cellItemList[this.curCenterIndex].fictitousIndex;
-        console.log("当前变量为： ~ file: LoopList.ts ~ line 113 ~ LoopList ~ onTouchMove ~ turnPage", turnPage)
+        // console.log("当前变量为： ~ file: LoopList.ts ~ line 113 ~ LoopList ~ onTouchMove ~ turnPage", turnPage)
 
         //更新item位置和数据
         this.cellItemList.forEach(cellItem => {
-            //因为 cell 受到动画控制，progress 只在 -1 ~ 0 ~ 1 之间，只要取1的余数就自动循环了，从而避免复杂坐标运算。
-            cellItem.progress = (cellItem.progress + delta) % 1;
-            cellItem.fictitousIndex += turnPage;
-            // cc.log(`信息：`, cellItem.index, cellItem.progress, cellItem.fictitousIndex);
-            if (this.isSwipeRight) {
-                // cc.log(`右移动`);
-                //0 ~ 0.25 && -1 ~ -0.75 更新数据
-            } else {
-                // cc.log(`左移动`);
-                //0.8 ~ 1 && -0.25 ~ 0 更新数据
-                if (
-                    (cellItem.progress <= 1 && cellItem.progress > 0.8) ||
-                    (cellItem.progress <= 0 && cellItem.progress > -0.25)
-                )
-                    cellItem.l2.string = this.testData[];
+            //判断是否需要更新数据
+            let progress = cellItem.progress;
+            let isSameSymbols = cellItem.lastProgress * progress > 0;
+            if (!isSameSymbols) {
+                // cc.log(`更新数据${cellItem.index}`);
+                /**
+                 *  检测到头或者尾部有1个需要更新虚拟Index
+                 *  判断左右，右滑动：
+                 *         判断是否到达数据的边界，如果到达数据顶部归0/最大，否则+/-1 ，并更新最大最小虚拟范围
+                 */
+                if (this.isSwipeRight) {
+                    if (this.fictitousMinIndex == 0) {
+                        cellItem.fictitousIndex = this.testData.length;
+                        this.fictitousMaxIndex++;
+                        this.fictitousMinIndex--;
+                    } else {
+                        cellItem.fictitousIndex = this.fictitousMinIndex--;
+                        this.fictitousMaxIndex--;
+                    }
+                } else {//向左滑动
+                    if (this.fictitousMaxIndex == this.testData.length) {
+                        cellItem.fictitousIndex = this.fictitousMaxIndex = 0;
+                        this.fictitousMinIndex++;
+                    } else {
+                        cellItem.fictitousIndex = this.fictitousMaxIndex++;
+                        this.fictitousMinIndex++;
+                    }
+                }
+                //更新文本
+                cellItem.l2.string = this.testData[cellItem.fictitousIndex];
             }
+            cellItem.lastProgress = progress;
+            //因为 cell 受到动画控制，progress 只在 -1 ~ 0 ~ 1 之间，只要取1的余数就自动循环了，从而避免复杂坐标运算。
+            cellItem.progress = (progress + delta) % 1;
+            cc.log(`信息：`, cellItem.index, progress, cellItem.fictitousIndex);
+
         });
         cc.log(`\n`)
         this.isTouchMove = true;

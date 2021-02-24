@@ -22,7 +22,7 @@ export default class CellItem extends cc.Component {
 
     /**当前item的Index */
     index = 0;
-    
+
     /**当前item的虚拟index */
     fictitousIndex = 0;
 
@@ -38,14 +38,17 @@ export default class CellItem extends cc.Component {
         this._progress = v;
     }
 
+    /**上一个progress,用于判断循环头尾判断 */
+    public lastProgress = 0;
+
     public init(mgr: LoopList, progress: number, index: number) {
         this.mgr = mgr;
         this.anim = this.getComponent(cc.Animation);
         this.progress = progress;
+        this.lastProgress = progress;
         this.fictitousIndex = index;
         this.index = index;
-        this.label.string = `index:(${index})`;
-        this.anim.play();
+        this.anim.play(); //必须播放后才能设置时间轴
     }
 
     applySetTime(time: number = this.anim.currentClip.duration * this._progress) {
