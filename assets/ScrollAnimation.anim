@@ -1,0 +1,115 @@
+{
+  "__type__": "cc.AnimationClip",
+  "_name": "ScrollAnimation",
+  "_objFlags": 0,
+  "_native": "",
+  "_duration": 0.5,
+  "sample": 60,
+  "speed": 0.5,
+  "wrapMode": 2,
+  "curveData": {
+    "props": {
+      "position": [
+        {
+          "frame": 0,
+          "value": [
+            -400,
+            0
+          ],
+          "motionPath": [
+            [
+              -223,
+              57,
+              -321,
+              40,
+              -121,
+              75
+            ]
+          ]
+        },
+        {
+          "frame": 0.25,
+          "value": [
+            0,
+            70
+          ],
+          "motionPath": [
+            [
+              211,
+              53,
+              115,
+              70,
+              315,
+              35
+            ]
+          ]
+        },
+        {
+          "frame": 0.5,
+          "value": [
+            400,
+            0
+          ],
+          "motionPath": []
+        }
+      ],
+      "opacity": [
+        {
+          "frame": 0,
+          "value": 0,
+          "curve": "sineInOut"
+        },
+        {
+          "frame": 0.25,
+          "value": 255,
+          "curve": "sineOut"
+        },
+        {
+          "frame": 0.5,
+          "value": 0
+        }
+      ],
+      "scale": [
+        {
+          "frame": 0,
+          "value": {
+            "__type__": "cc.Vec2",
+            "x": 0.5,
+            "y": 0.5
+          }
+        },
+        {
+          "frame": 0.25,
+          "value": {
+            "__type__": "cc.Vec2",
+            "x": 0.7,
+            "y": 0.7
+          }
+        },
+        {
+          "frame": 0.5,
+          "value": {
+            "__type__": "cc.Vec2",
+            "x": 0.5,
+            "y": 0.5
+          }
+        }
+      ],
+      "angle": [
+        {
+          "frame": 0,
+          "value": 15
+        },
+        {
+          "frame": 0.25,
+          "value": 0
+        },
+        {
+          "frame": 0.5,
+          "value": -15
+        }
+      ]
+    }
+  },
+  "events": []
+}

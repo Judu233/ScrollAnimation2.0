@@ -1,0 +1,9 @@
+{
+  "engine": "cocos-creator-js",
+  "packages": "packages",
+  "name": "ScrollAnimation",
+  "uuid": "69081aba-9908-4d83-9740-0b29b73e13b0",
+  "version": "2.3.4",
+  "id": "e6ca7b17-4cc6-4bba-89ea-3b1bbf20702f",
+  "isNew": false
+}
