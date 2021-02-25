@@ -171,7 +171,7 @@
       "array": [
         0,
         0,
-        358.5345171667576,
+        348.2363803459952,
         0,
         0,
         0,
@@ -248,12 +248,12 @@
       }
     ],
     "_prefab": null,
-    "_opacity": 255,
+    "_opacity": 123.16499999999999,
     "_color": {
       "__type__": "cc.Color",
-      "r": 5,
-      "g": 5,
-      "b": 5,
+      "r": 69,
+      "g": 125,
+      "b": 255,
       "a": 255
     },
     "_contentSize": {
@@ -277,8 +277,8 @@
         0,
         0,
         1,
-        1,
-        1,
+        0.7,
+        0.7,
         1
       ]
     },
@@ -307,7 +307,7 @@
     "itemPrefab": {
       "__uuid__": "a440f2a9-1c99-4c59-bdad-2a7daab6ba3c"
     },
-    "showCount": 4,
+    "showCount": 3,
     "adsorptionFeatures": false,
     "_id": "cdCCBrj25FRKKCPuTg0OH5"
   },

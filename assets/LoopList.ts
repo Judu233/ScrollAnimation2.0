@@ -101,17 +101,6 @@ export default class LoopList extends cc.Component {
         this.adsorptionValue = 1 / this.showCount; //吸附值
         // cc.log(`吸附值：${this.adsorptionValue}`);
 
-        //设置开始记录的index
-        let { centerIndex, maxIndex, minIndex } = this.getIndex();
-        this.curCenterIndex = centerIndex;
-        this.curMinIndex = minIndex;
-        this.curMaxIndex = maxIndex;
-
-        //设置虚拟index
-        this.fictitousCenterIndex = centerIndex;
-        this.fictitousMaxIndex = maxIndex;
-        this.fictitousMinIndex = minIndex;
-
         //实例化
         let prefab = this.itemPrefab;
         this.fo(this.showCount)((i) => {
@@ -128,6 +117,17 @@ export default class LoopList extends cc.Component {
             this.cellItemList.push(cellItem);
             this.cellItemMap.set(i.toString(), cellItem);
         });
+
+        //设置开始记录的index
+        let { centerIndex, maxIndex, minIndex } = this.getIndex();
+        this.curCenterIndex = centerIndex;
+        this.curMinIndex = minIndex;
+        this.curMaxIndex = maxIndex;
+
+        //设置虚拟index
+        this.fictitousCenterIndex = centerIndex;
+        this.fictitousMaxIndex = maxIndex;
+        this.fictitousMinIndex = minIndex;
     }
 
     onTouchStart() {
@@ -188,18 +188,29 @@ export default class LoopList extends cc.Component {
             }
         } else {//向左滑动
             if (minIndex != this.curMinIndex) {
-                cc.log(`minIndex:${minIndex},curMinIndex:${this.curMinIndex}`);
+                // cc.log(`minIndex:${minIndex},curMinIndex:${this.curMinIndex}`);
                 this.curMinIndex = minIndex;
                 this.curMaxIndex = maxIndex;
 
-                let minCellItem = this.cellItemList[minIndex];
-                if (this.fictitousMaxIndex == this.testData.length) {
-                    minCellItem.fictitousIndex = this.fictitousMaxIndex = 0;
-                    this.fictitousMinIndex++;
-                } else {
-                    minCellItem.fictitousIndex = this.fictitousMaxIndex++;
+                let minCellItem = this.cellItemList[this.curMaxIndex];
+                // if (this.fictitousMaxIndex == this.testData.length - 1) debugger;
+                if (this.fictitousMaxIndex == this.testData.length - 1) { //最大到达边界
+                    this.fictitousMaxIndex = 0;
                     this.fictitousMinIndex++;
                 }
+                else if (this.fictitousMinIndex == this.testData.length) {//最小到达边界
+                    this.fictitousMinIndex = 0;
+                    this.fictitousMaxIndex++;
+                }
+                else {
+                    this.fictitousMaxIndex++;
+                    this.fictitousMinIndex++;
+                }
+
+                if (minCellItem.fictitousIndex == this.testData.length)
+                    minCellItem.fictitousIndex = 0;
+                minCellItem.fictitousIndex = this.fictitousMaxIndex;
+                cc.log(`小：${this.fictitousMinIndex}, 大：${this.fictitousMaxIndex}`);
                 minCellItem.l2.string = this.testData[minCellItem.fictitousIndex];
             }
         }
