@@ -50,10 +50,13 @@ export default class LoopList extends cc.Component {
 
     /**记录当前的全局实际的Index */
     private curCenterIndex = 0;
+    /**全局实际最小index */
+    private curMinIndex = 0;
+    /**全局实际最大Index */
+    private curMaxIndex = 0;
 
-    /**全局虚拟index */
+    /**全局中心虚拟index */
     private fictitousCenterIndex = 0;
-
     /**全局最大的虚拟Index */
     private fictitousMaxIndex = 0;
     /**全局最小的虚拟Index */
@@ -99,9 +102,15 @@ export default class LoopList extends cc.Component {
         // cc.log(`吸附值：${this.adsorptionValue}`);
 
         //设置开始记录的index
-        this.curCenterIndex = 0;
-        this.fictitousMaxIndex = this.showCount - 1;
-        this.fictitousMinIndex = 0;
+        let { centerIndex, maxIndex, minIndex } = this.getIndex();
+        this.curCenterIndex = centerIndex;
+        this.curMinIndex = minIndex;
+        this.curMaxIndex = maxIndex;
+
+        //设置虚拟index
+        this.fictitousCenterIndex = centerIndex;
+        this.fictitousMaxIndex = maxIndex;
+        this.fictitousMinIndex = minIndex;
 
         //实例化
         let prefab = this.itemPrefab;
@@ -133,8 +142,8 @@ export default class LoopList extends cc.Component {
 
         //查找离中心的index-> 计算翻到第几，更新文本数据
         let { centerIndex, maxIndex, minIndex } = this.getIndex();
-        let lastIndex = this.swipeIndex;
 
+        let lastIndex = this.swipeIndex;
         this.curCenterIndex = centerIndex;
         let turnPage = Math.floor(this.curCenterIndex - lastIndex);
 
@@ -145,42 +154,56 @@ export default class LoopList extends cc.Component {
         this.cellItemList.forEach(cellItem => {
             //判断是否需要更新数据
             let progress = cellItem.progress;
-            let isSameSymbols = cellItem.lastProgress * progress > 0;
-            if (!isSameSymbols) {
-                // cc.log(`更新数据${cellItem.index}`);
-                /**
-                 *  检测到头或者尾部有1个需要更新虚拟Index
-                 *  判断左右，右滑动：
-                 *         判断是否到达数据的边界，如果到达数据顶部归0/最大，否则+/-1 ，并更新最大最小虚拟范围
-                 */
-                if (this.isSwipeRight) {
-                    if (this.fictitousMinIndex == 0) {
-                        cellItem.fictitousIndex = this.testData.length;
-                        this.fictitousMaxIndex++;
-                        this.fictitousMinIndex--;
-                    } else {
-                        cellItem.fictitousIndex = this.fictitousMinIndex--;
-                        this.fictitousMaxIndex--;
-                    }
-                } else {//向左滑动
-                    if (this.fictitousMaxIndex == this.testData.length) {
-                        cellItem.fictitousIndex = this.fictitousMaxIndex = 0;
-                        this.fictitousMinIndex++;
-                    } else {
-                        cellItem.fictitousIndex = this.fictitousMaxIndex++;
-                        this.fictitousMinIndex++;
-                    }
-                }
-                //更新文本
-                cellItem.l2.string = this.testData[cellItem.fictitousIndex];
-            }
             cellItem.lastProgress = progress;
             //因为 cell 受到动画控制，progress 只在 -1 ~ 0 ~ 1 之间，只要取1的余数就自动循环了，从而避免复杂坐标运算。
             cellItem.progress = (progress + delta) % 1;
-            cc.log(`信息：`, cellItem.index, progress, cellItem.fictitousIndex);
+            // cc.log(`信息：`, cellItem.index, progress, cellItem.fictitousIndex);
 
         });
-        cc.log(`\n`)
+
+        // cc.log(`更新数据${cellItem.index}`);
+        /**
+         *  检测到头或者尾部有1个需要更新虚拟Index
+         *  判断左右，右滑动：
+         *         判断是否到达数据的边界，如果到达数据顶部归0/最大，否则+/-1 ，并更新最大最小虚拟范围
+         */
+        if (this.isSwipeRight) {
+            if (maxIndex != this.curMaxIndex) {
+                cc.log(`maxIndex:${maxIndex},curMaxIndex:${this.curMaxIndex}`);
+                this.curMinIndex = minIndex;
+                this.curMaxIndex = maxIndex;
+
+                let maxCellItem = this.cellItemList[maxIndex];
+                //更新数据
+                if (this.fictitousMinIndex == 0) {
+                    maxCellItem.fictitousIndex = this.testData.length;
+                    this.fictitousMaxIndex++;
+                    this.fictitousMinIndex--;
+                } else {
+                    maxCellItem.fictitousIndex = this.fictitousMinIndex--;
+                    this.fictitousMaxIndex--;
+                }
+                //更新文本
+                maxCellItem.l2.string = this.testData[maxCellItem.fictitousIndex];
+            }
+        } else {//向左滑动
+            if (minIndex != this.curMinIndex) {
+                cc.log(`minIndex:${minIndex},curMinIndex:${this.curMinIndex}`);
+                this.curMinIndex = minIndex;
+                this.curMaxIndex = maxIndex;
+
+                let minCellItem = this.cellItemList[minIndex];
+                if (this.fictitousMaxIndex == this.testData.length) {
+                    minCellItem.fictitousIndex = this.fictitousMaxIndex = 0;
+                    this.fictitousMinIndex++;
+                } else {
+                    minCellItem.fictitousIndex = this.fictitousMaxIndex++;
+                    this.fictitousMinIndex++;
+                }
+                minCellItem.l2.string = this.testData[minCellItem.fictitousIndex];
+            }
+        }
+        // cc.log(`\n`)
         this.isTouchMove = true;
     }
 

@@ -20,28 +20,29 @@ export default class CellItem extends cc.Component {
     /**管理列表 */
     mgr: LoopList = null;
 
-    /**当前item的Index */
+    /**当前实际item的Index */
     index = 0;
 
     /**当前item的虚拟index */
     fictitousIndex = 0;
 
+    /**挂载在节点上的动画节点 */
     anim: cc.Animation = null;
 
     /**动画完成进度 */
     private _progress: number = 0.5;
-    public get progress(): number {
+    get progress(): number {
         return this._progress;
     }
-    public set progress(v: number) {
+    set progress(v: number) {
         // cc.log(`设置的progress:${v}`);
         this._progress = v;
     }
 
     /**上一个progress,用于判断循环头尾判断 */
-    public lastProgress = 0;
+    lastProgress = 0;
 
-    public init(mgr: LoopList, progress: number, index: number) {
+    init(mgr: LoopList, progress: number, index: number) {
         this.mgr = mgr;
         this.anim = this.getComponent(cc.Animation);
         this.progress = progress;
