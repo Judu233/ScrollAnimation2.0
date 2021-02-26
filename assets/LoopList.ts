@@ -94,7 +94,7 @@ export default class LoopList extends cc.Component {
     }
 
     initCells() {
-        this.fo(10)((i) => this.testData[i] = i.toString() + i);
+        this.fo(10)(i => this.testData[i] = i.toString() + i);
 
         //设置添加的根节点
         this.contentContainer = this.contentContainer == null ? this.node : this.contentContainer;
@@ -103,17 +103,18 @@ export default class LoopList extends cc.Component {
 
         //实例化
         let prefab = this.itemPrefab;
-        this.fo(this.showCount)((i) => {
+        this.fo(this.showCount)(i => {
             let child = cc.instantiate(prefab);
             this.contentContainer.addChild(child);
             //设置进度位置
             let progressPos = 0.5 + i / this.showCount;
             let cellItem = child.getComponent(CellItem);
             cellItem.init(this, progressPos, i);
-            //设置数据文本
+            //设置文本
             cellItem.label.string = `index:(${i})`;
-            cellItem.l2.string = `${Number(this.testData[i]) - 1}`;
+            // cellItem.l2.string = `${Number(this.testData[i])}`;
 
+            //存储
             this.cellItemList.push(cellItem);
             this.cellItemMap.set(i.toString(), cellItem);
         });
@@ -124,15 +125,26 @@ export default class LoopList extends cc.Component {
         this.curMinIndex = minIndex;
         this.curMaxIndex = maxIndex;
 
-        //设置虚拟index
+        //开始的虚拟Index
         this.fictitousCenterIndex = 0;
-        this.fictitousMaxIndex = 1;
-        this.fictitousMinIndex = 9;
+        //设置虚拟index->根据centerIndex记录
+        let list = [...this.cellItemList.slice(centerIndex), ...this.cellItemList.slice(0, centerIndex)];
+        let startIndex = this.fictitousCenterIndex;
+        let fictiousMaxIndex = 0;
+        this.fo(list.length)(i => {
+            list[i].fictitousIndex = startIndex;
+            if (i == maxIndex ) {
+                startIndex = 0;
+                fictiousMaxIndex = i;
+            }
+        })
+
+        this.fictitousMaxIndex = fictiousMaxIndex;
+        this.fictitousMinIndex = list.length;
 
     }
 
     onTouchStart() {
-        this.swipeIndex = this.fictitousCenterIndex;
     }
 
     onTouchMove(event: cc.Event.EventTouch) {
@@ -143,13 +155,8 @@ export default class LoopList extends cc.Component {
 
         //查找离中心的index-> 计算翻到第几，更新文本数据
         let { centerIndex, maxIndex, minIndex } = this.getIndex();
-
-        let lastIndex = this.swipeIndex;
         this.curCenterIndex = centerIndex;
-        let turnPage = Math.floor(this.curCenterIndex - lastIndex);
-
-        this.fictitousCenterIndex = this.cellItemList[this.curCenterIndex].fictitousIndex;
-        // console.log("当前变量为： ~ file: LoopList.ts ~ line 113 ~ LoopList ~ onTouchMove ~ turnPage", turnPage)
+        let turnPage = Math.floor(this.curCenterIndex - this.swipeIndex);
 
         //更新item位置和数据
         this.cellItemList.forEach(cellItem => {
@@ -159,18 +166,13 @@ export default class LoopList extends cc.Component {
             //因为 cell 受到动画控制，progress 只在 -1 ~ 0 ~ 1 之间，只要取1的余数就自动循环了，从而避免复杂坐标运算。
             cellItem.progress = (progress + delta) % 1;
             // cc.log(`信息：`, cellItem.index, progress, cellItem.fictitousIndex);
-
         });
 
-        // cc.log(`更新数据${cellItem.index}`);
-        /**
-         *  检测到头或者尾部有1个需要更新虚拟Index
-         *  判断左右，右滑动：
-         *         判断是否到达数据的边界，如果到达数据顶部归0/最大，否则+/-1 ，并更新最大最小虚拟范围
-         */
+        //判断头或者尾部是否有需要更新虚拟Index
         let isArriveMax = maxIndex != this.curMaxIndex;
         let isArriveMin = minIndex != this.curMinIndex;
         if (isArriveMax && this.isSwipeRight) {
+            //向右滑动
             // cc.log(`maxIndex:${maxIndex},curMaxIndex:${this.curMaxIndex}`);
             this.curMinIndex = minIndex;
             this.curMaxIndex = maxIndex;
@@ -195,7 +197,8 @@ export default class LoopList extends cc.Component {
 
             //更新文本
             maxCellItem.l2.string = this.testData[maxCellItem.fictitousIndex];
-        } else if (isArriveMin && !this.isSwipeRight) {//向左滑动
+        } else if (isArriveMin && !this.isSwipeRight) {
+            //向左滑动
             // cc.log(`minIndex:${minIndex},curMinIndex:${this.curMinIndex}`);
             this.curMinIndex = minIndex;
             this.curMaxIndex = maxIndex;
