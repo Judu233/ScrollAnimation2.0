@@ -308,7 +308,9 @@
       "__uuid__": "a440f2a9-1c99-4c59-bdad-2a7daab6ba3c"
     },
     "showCount": 3,
-    "adsorptionFeatures": true,
+    "adsorptionFeatures": false,
+    "slideTouch": true,
+    "slideDistence": 2,
     "_id": "cdCCBrj25FRKKCPuTg0OH5"
   },
   {
