@@ -46,7 +46,7 @@ export default class LoopList extends cc.Component {
     isSwipeRight = false;
 
     /**滑动加速值 =>加快item移动速度*/
-    swipeValue = 5;
+    swipeValue = 15;
 
     /**记录当前的全局实际的Index */
     private curCenterIndex = 0;
@@ -69,9 +69,6 @@ export default class LoopList extends cc.Component {
     private fictitousMaxIndex = 0;
     /**全局最小的虚拟Index */
     private fictitousMinIndex = 0;
-
-    /**滑动时记录的index */
-    private swipeIndex = 0;
 
     /**测试数据 */
     private testData: string[] = [];
@@ -113,7 +110,7 @@ export default class LoopList extends cc.Component {
         //初始化最开始显示的item-
         let prefab = this.itemPrefab;
         let maxProgressIndex = 0;
-        this.fictitousCenterIndex = 0;
+        this.fictitousCenterIndex = 5;
         this.fo(this.showCount)(i => {
             let child = cc.instantiate(prefab);
             this.contentContainer.addChild(child);
@@ -167,17 +164,12 @@ export default class LoopList extends cc.Component {
         this.isSwipeRight = delta > 0;
         delta += (this.isSwipeRight ? this.swipeValue : - this.swipeValue) / 1000;
 
-        //查找离中心的index-> 计算翻到第几，更新文本数据
+        //更新item位置和数据
         let { centerIndex, maxIndex, minIndex } = this.getIndex();
         this.curCenterIndex = centerIndex;
-        let turnPage = Math.floor(this.curCenterIndex - this.swipeIndex);
-
-        //更新item位置和数据
         this.cellItemList.forEach(cellItem => {
-            //判断是否需要更新数据
-            let progress = cellItem.progress;
-            cellItem.lastProgress = progress;
             //因为 cell 受到动画控制，progress 只在 0 ~ 1 之间，只要取1的余数就自动循环了，从而避免复杂坐标运算。
+            let progress = cellItem.progress;
             cellItem.progress = (progress + delta) % 1;
             // cc.log(`index:${cellItem.index},progress:${progress.toFixed(2)},虚拟index:${cellItem.fictitousIndex}`);
         });
@@ -185,101 +177,100 @@ export default class LoopList extends cc.Component {
         //判断头或者尾部是否有需要更新虚拟Index
         let isArriveMax = maxIndex != this.curMaxIndex;
         let isArriveMin = minIndex != this.curMinIndex;
-        if (isArriveMax && this.isSwipeRight) {
-            //向右滑动
+        if (isArriveMax || isArriveMin) {
             // cc.log(`maxIndex:${maxIndex},curMaxIndex:${this.curMaxIndex}`);
             this.curMinIndex = minIndex;
             this.curMaxIndex = maxIndex;
+            let cellItem: CellItem;
+            if (isArriveMax && this.isSwipeRight) {
+                //向右滑动
+                cellItem = this.cellItemList[this.curMinIndex];
+                if (this.fictitousMinIndex == 1) {
+                    this.fictitousMinIndex = 0;
+                    this.fictitousMaxIndex--;
+                }
+                else if (this.fictitousMaxIndex == 1) {
+                    this.fictitousMinIndex--;
+                    this.fictitousMaxIndex = 0;
+                }
+                else {
+                    this.fictitousMaxIndex--;
+                    this.fictitousMinIndex--;
+                }
 
-            let minCellItem = this.cellItemList[this.curMinIndex];
-            if (this.fictitousMinIndex == 1) { //最大到达边界
-                this.fictitousMinIndex = 0;
-                this.fictitousMaxIndex--;
-            }
-            else if (this.fictitousMaxIndex == 1) {//最小到达边界
-                this.fictitousMinIndex--;
-                this.fictitousMaxIndex = this.testData.length - 1;
-            }
-            else {
-                this.fictitousMaxIndex--;
-                this.fictitousMinIndex--;
-            }
+                if (this.fictitousMinIndex < 0)
+                    this.fictitousMinIndex = this.testData.length - 1;
+                if (this.fictitousMaxIndex < 0)
+                    this.fictitousMaxIndex = this.testData.length - 1;
 
-            if (this.fictitousMinIndex < 0)
-                this.fictitousMinIndex = this.testData.length - 1;
-            if (this.fictitousMaxIndex < 0)
-                this.fictitousMaxIndex = this.testData.length - 1;
+                cellItem.fictitousIndex = this.fictitousMinIndex;
+            } else if (isArriveMin && !this.isSwipeRight) {
+                //向左滑动
+                cellItem = this.cellItemList[this.curMaxIndex];
+                if (this.fictitousMaxIndex == this.testData.length - 1) { //最大到达边界
+                    this.fictitousMaxIndex = 0;
+                    this.fictitousMinIndex++;
+                }
+                else if (this.fictitousMinIndex == this.testData.length - 1) {//最小到达边界
+                    this.fictitousMinIndex = 0;
+                    this.fictitousMaxIndex++;
+                }
+                else {
+                    this.fictitousMaxIndex++;
+                    this.fictitousMinIndex++;
+                }
 
-            //更新虚拟index
-            minCellItem.fictitousIndex = this.fictitousMinIndex;
-            minCellItem.l2.string = this.testData[minCellItem.fictitousIndex];
-        } else if (isArriveMin && !this.isSwipeRight) {
-            //向左滑动
-            // cc.log(`minIndex:${minIndex},curMinIndex:${this.curMinIndex}`);
-            this.curMinIndex = minIndex;
-            this.curMaxIndex = maxIndex;
+                if (this.fictitousMinIndex > this.testData.length - 1)
+                    this.fictitousMinIndex = 0;
+                if (this.fictitousMaxIndex > this.testData.length - 1)
+                    this.fictitousMaxIndex = 0;
 
-            let maxCellItem = this.cellItemList[this.curMaxIndex];
-            if (this.fictitousMaxIndex == this.testData.length - 1) { //最大到达边界
-                this.fictitousMaxIndex = 0;
-                this.fictitousMinIndex++;
+                cellItem.fictitousIndex = this.fictitousMaxIndex;
             }
-            else if (this.fictitousMinIndex == this.testData.length - 1) {//最小到达边界
-                this.fictitousMinIndex = 0;
-                this.fictitousMaxIndex++;
-            }
-            else {
-                this.fictitousMaxIndex++;
-                this.fictitousMinIndex++;
-            }
-
-            // if(this.fictitousMinIndex)
-
-            //更新虚拟index
-            maxCellItem.fictitousIndex = this.fictitousMaxIndex;
-            maxCellItem.l2.string = this.testData[maxCellItem.fictitousIndex];
+            cellItem.l2.string = this.testData[cellItem.fictitousIndex];
+            cellItem.switchBeginningAndEnd();
             // cc.log(`小：${this.fictitousMinIndex}, 大：${this.fictitousMaxIndex}`);
         }
-        cc.log(`max:${this.fictitousMaxIndex},min:${this.fictitousMinIndex}`);
+        // cc.log(`max:${this.fictitousMaxIndex},min:${this.fictitousMinIndex}`);
         // cc.log(`\n`)
         this.isTouchMove = true;
     }
 
     onTouchEnd() {
         if (this.adsorptionFeatures) {
-            /**
-             * 自动吸附最近的格数
-             *  如果设置的 T > duration => T = T % duration
-             *   T < 0 => T = T % duration + duration;
-             */
-
-            //查找离中心的index
+            //开启吸附效果
             let { centerIndex } = this.getIndex();
-            //组成最开始的数组方便计算移动位置
             let newList = [...this.cellItemList.slice(centerIndex), ...this.cellItemList.slice(0, centerIndex)];
-
             newList.forEach((cellItem, index) => {
-                //计算移动位置 0~1
                 // cc.log(`移动信息：`, cellItem.index, cellItem.progress);
                 let interval = index / this.showCount;
-                let moveTarget = Math.abs(cellItem.progress > 0 ? (0.5 + interval) : (-0.5 - interval) % 1);
+                let moveTarget = Math.abs(0.5 + interval);
+                moveTarget = moveTarget > 1 ? moveTarget % 1 : moveTarget;
 
-                // let moveDistence = Math.abs(cellItem.progress - moveTarget);
-                // cc.log(`移动距离：`, moveDistence);
-                if (moveTarget != 0) {
+                if (cellItem.progress < 0) {
                     //小于0的提前设置,防止移动到错误的位置
-                    if (cellItem.progress < 0) {
-                        cellItem.progress = 1 - Math.abs(cellItem.progress);
-                        cellItem.applySetTime(cellItem.progress);
-                    }
-                    cc.tween(cellItem)
-                        .to(0.2, { progress: moveTarget })
-                        .start();
-                } else
-                    cellItem.progress = moveTarget;//最后一个
+                    cellItem.progress = 1 - Math.abs(cellItem.progress);
+                    cellItem.applySetTime(cellItem.progress);
+                }
+                let distence = Math.abs(moveTarget - cellItem.progress) * 10;
+                let moveTime = this.smoothstep(distence / 3, 0.3, 0.4);
+                if (cellItem.adsorptionAnim)
+                    cellItem.adsorptionAnim.stop();
+
+                cellItem.adsorptionAnim = cc.tween(cellItem)
+                    .to(moveTime, { progress: moveTarget }, cc.easeSineOut())
+                    .call(() => cellItem.adsorptionAnim = null)
+                    .start();
             });
         }
         this.isTouchMove = false;
+    }
+
+    smoothstep(x: number, min: number, max: number) {
+        if (x <= min) return min;
+        if (x >= max) return max;
+        x = (x - min) / (max - min);
+        return x;
     }
 
     getIndex() {
@@ -288,7 +279,6 @@ export default class LoopList extends cc.Component {
         let minIndex = 0, minDis = 0;
         for (let [index, item] of this.cellItemList.entries()) {
             let progress = item.progress;
-            //找距离中心最小的index
             let centerProgress = Math.abs(progress + (progress > 0 ? -0.5 : 0.5));
             if (centerProgress < centerDis) {
                 centerIndex = index;

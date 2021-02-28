@@ -29,6 +29,12 @@ export default class CellItem extends cc.Component {
     /**挂载在节点上的动画节点 */
     anim: cc.Animation = null;
 
+    /**吸附tween */
+    adsorptionAnim: cc.Tween = null;
+
+    @property(cc.Node)
+    firstNode: cc.Node = null;
+
     /**动画完成进度 */
     private _progress: number = 0.5;
     get progress(): number {
@@ -39,17 +45,18 @@ export default class CellItem extends cc.Component {
         this._progress = v;
     }
 
-    /**上一个progress,用于判断循环头尾判断 */
-    lastProgress = 0;
-
     init(mgr: LoopList, progress: number, index: number) {
         this.mgr = mgr;
         this.anim = this.getComponent(cc.Animation);
         this.progress = progress;
-        this.lastProgress = progress;
         this.index = index;
-        this.anim.play(); 
+        this.anim.play();
         this.applySetTime();
+    }
+
+    /**从尾->头 or 头->尾 */
+    switchBeginningAndEnd() {
+        this.firstNode.active = this.fictitousIndex == 0;
     }
 
     applySetTime(time: number = this.anim.currentClip.duration * this._progress) {
@@ -58,10 +65,6 @@ export default class CellItem extends cc.Component {
         //[核心部分] 强制设置动画处于某一个时间节点
         this.anim.setCurrentTime(time);
         this.progress = (this.progress % 1);
-    }
-
-    getAnimDuration() {
-        return this.anim.currentClip.duration;
     }
 
     update(dt) {
