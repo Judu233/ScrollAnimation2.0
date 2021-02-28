@@ -47,9 +47,9 @@ export default class CellItem extends cc.Component {
         this.anim = this.getComponent(cc.Animation);
         this.progress = progress;
         this.lastProgress = progress;
-        this.fictitousIndex = index;
         this.index = index;
-        this.anim.play(); //必须播放后才能设置时间轴
+        this.anim.play(); 
+        this.applySetTime();
     }
 
     applySetTime(time: number = this.anim.currentClip.duration * this._progress) {
@@ -57,6 +57,7 @@ export default class CellItem extends cc.Component {
 
         //[核心部分] 强制设置动画处于某一个时间节点
         this.anim.setCurrentTime(time);
+        this.progress = (this.progress % 1);
     }
 
     getAnimDuration() {
