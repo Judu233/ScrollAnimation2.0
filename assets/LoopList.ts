@@ -191,6 +191,10 @@ export default class LoopList extends cc.Component {
             let progress = cellItem.progress;
             cellItem.progress = (progress + delta) % 1;
             // cc.log(`index:${cellItem.index},progress:${progress.toFixed(2)},虚拟index:${cellItem.fictitousIndex}`);
+            if (cellItem.adsorptionAnim) {
+                cellItem.adsorptionAnim.stop();
+                cellItem.adsorptionAnim = null;
+            }
         });
 
         //判断头或者尾部是否有需要更新虚拟Index
@@ -289,9 +293,11 @@ export default class LoopList extends cc.Component {
 
     private moveToTarget(cellItem: CellItem, moveTarget: number) {
         let distence = Math.abs(moveTarget - cellItem.progress) * 10;
-        let moveTime = this.smoothstep(distence / 3, 0.4, 0.5);
-        if (cellItem.adsorptionAnim)
+        let moveTime = this.smoothstep(distence / 3, 0.25, 0.4);
+        if (cellItem.adsorptionAnim) {
             cellItem.adsorptionAnim.stop();
+            cellItem.adsorptionAnim = null;
+        }
 
         cellItem.adsorptionAnim = cc.tween(cellItem)
             .to(moveTime, { progress: moveTarget }, cc.easeSineOut())
