@@ -3,6 +3,9 @@ import CellItem from "./CellItem";
 
 const { ccclass, property } = cc._decorator;
 
+/**
+ *  注意 cellItem的动画的[位置属性x,y,z]不能加缓动（其他属性可以缓动），否则会出现错位，要修改归为的缓动请直接缓动属性progress
+ */
 @ccclass
 export default class LoopList extends cc.Component {
     @property({
@@ -19,9 +22,9 @@ export default class LoopList extends cc.Component {
     })
     itemPrefab: cc.Prefab = null;
 
-    /**在屏幕上显示的个数，可见部分 */
     @property({
         displayName: `屏幕显示数量`,
+        tooltip: `在屏幕上显示的个数，可见部分 `
     })
     showCount = 5;
 
@@ -53,13 +56,13 @@ export default class LoopList extends cc.Component {
     private cellItemMap: Map<string, CellItem> = new Map();
 
     /**是否在触摸滑动 */
-    isTouchMove = false;
+    private isTouchMove = false;
 
     /**是否向右滑动 */
-    isSwipeRight = false;
+    private isSwipeRight = false;
 
     /**滑动加速值 =>加快item移动速度*/
-    swipeValue = 0;
+    private swipeValue = 0;
 
     /**记录当前的全局实际的Index */
     private curCenterIndex = 0;
@@ -104,17 +107,18 @@ export default class LoopList extends cc.Component {
         this.node.off(cc.Node.EventType.TOUCH_CANCEL, this.onTouchEnd, this);
     }
 
-    fo(count: number) {
+    private fo(count: number) {
         return (call: (i: number) => void) => {
             for (let ife = 0; ife < count; ife++)
                 call && call.call(this, ife);
         };
     }
 
+    /**初始化cellItem-> 计算progress->虚拟Index */
     initCells() {
         this.fo(15)(i => this.testData[i] = i.toString());
 
-        //设置添加的根节点
+        //设置添加的根节点->存放cellItem的
         this.contentContainer = this.contentContainer == null ? this.node : this.contentContainer;
         //设置滑动
         this.slideTouch = !this.adsorptionFeatures;
@@ -180,10 +184,24 @@ export default class LoopList extends cc.Component {
         this._slideDis += delta;
         this.isTouchMove = true;
 
-        //滑动模式
+        //滑动模式->不用更新progress直接最后更新
         if (this.slideTouch) return;
 
-        //更新item位置progress和显示数据
+        //吸附模式->更新item位置progress和显示数据
+        this.UpdateFictitousIndex(delta);
+    }
+
+    onTouchEnd() {
+        if (this.adsorptionFeatures) {
+            //吸附到目标
+            this.adsorptionTotarget();
+        } else if (this.slideTouch) {
+            //滑动到目标
+            this.slideTotarget();
+        }
+    }
+
+    private UpdateFictitousIndex(delta: number) {
         let { centerIndex, maxIndex, minIndex } = this.getIndex();
         this.curCenterIndex = centerIndex;
         this.cellItemList.forEach(cellItem => {
@@ -191,10 +209,7 @@ export default class LoopList extends cc.Component {
             let progress = cellItem.progress;
             cellItem.progress = (progress + delta) % 1;
             // cc.log(`index:${cellItem.index},progress:${progress.toFixed(2)},虚拟index:${cellItem.fictitousIndex}`);
-            if (cellItem.adsorptionAnim) {
-                cellItem.adsorptionAnim.stop();
-                cellItem.adsorptionAnim = null;
-            }
+            cellItem._stopProgressAction();
         });
 
         //判断头或者尾部是否有需要更新虚拟Index
@@ -225,7 +240,6 @@ export default class LoopList extends cc.Component {
                     this.fictitousMinIndex = this.testData.length - 1;
                 if (this.fictitousMaxIndex < 0)
                     this.fictitousMaxIndex = this.testData.length - 1;
-
                 cellItem.fictitousIndex = this.fictitousMinIndex;
             } else if (isArriveMin && !this.isSwipeRight) {
                 //向左滑动
@@ -234,7 +248,7 @@ export default class LoopList extends cc.Component {
                     this.fictitousMaxIndex = 0;
                     this.fictitousMinIndex++;
                 }
-                else if (this.fictitousMinIndex == this.testData.length - 1) {//最小到达边界
+                else if (this.fictitousMinIndex == this.testData.length - 1) { //最小到达边界
                     this.fictitousMinIndex = 0;
                     this.fictitousMaxIndex++;
                 }
@@ -247,7 +261,6 @@ export default class LoopList extends cc.Component {
                     this.fictitousMinIndex = 0;
                 if (this.fictitousMaxIndex > this.testData.length - 1)
                     this.fictitousMaxIndex = 0;
-
                 cellItem.fictitousIndex = this.fictitousMaxIndex;
             }
             cellItem.l2.string = this.testData[cellItem.fictitousIndex];
@@ -258,61 +271,96 @@ export default class LoopList extends cc.Component {
         // cc.log(`\n`)
     }
 
-    onTouchEnd() {
-        if (this.adsorptionFeatures) {
+    private slideTotarget() {
+        cc.log(`滑动距离:${this._slideDis}`);
+        if (Math.abs(this._slideDis * 10) >= this.slideDistence) {
             let { centerIndex } = this.getIndex();
-            //开启吸附效果
             let newList = [...this.cellItemList.slice(centerIndex), ...this.cellItemList.slice(0, centerIndex)];
             newList.forEach((cellItem, index) => {
-                // cc.log(`移动信息：`, cellItem.index, cellItem.progress);
-                let moveTarget = Math.abs(0.5 + index / this.showCount);
-                moveTarget = moveTarget > 1 ? moveTarget % 1 : moveTarget;
-
-                if (cellItem.progress < 0) {
-                    //小于0的提前设置,防止移动到错误的位置
-                    cellItem.progress = 1 - Math.abs(cellItem.progress);
-                    cellItem.applySetTime(cellItem.progress);
-                }
-                this.moveToTarget(cellItem, moveTarget);
-            });
-        } else if (this.slideTouch) {
-            cc.log(`滑动了:${this._slideDis}`);
-            if (Math.abs(this._slideDis * 10) >= this.slideDistence) {
-                let { centerIndex } = this.getIndex();
-                let newList = [...this.cellItemList.slice(centerIndex), ...this.cellItemList.slice(0, centerIndex)];
-                newList.forEach((cellItem, index) => {
-                    // cellItem.
-                    let moveTarget = Math.abs(0.5 + index / this.showCount);
-                    cc.log(moveTarget);
-                })
-                this._slideDis = 0;
-            }
+                // this.UpdateFictitousIndex(0.02);
+                // this.adsorptionTotarget();
+                this.moveToTarget(cellItem, cellItem.progress + 0.2, () => {
+                    this.isTouchMove = false;
+                    // adsorptionCall && adsorptionCall();
+                });
+            })
+            this._slideDis = 0;
         }
-        this.isTouchMove = false;
     }
 
-    private moveToTarget(cellItem: CellItem, moveTarget: number) {
-        let distence = Math.abs(moveTarget - cellItem.progress) * 10;
-        let moveTime = this.smoothstep(distence / 3, 0.25, 0.4);
-        if (cellItem.adsorptionAnim) {
-            cellItem.adsorptionAnim.stop();
-            cellItem.adsorptionAnim = null;
-        }
+    private adsorptionTotarget(adsorptionCall?: () => void) {
+        let { centerIndex } = this.getIndex();
+        let newList = [...this.cellItemList.slice(centerIndex), ...this.cellItemList.slice(0, centerIndex)];
+        newList.forEach((cellItem, index) => {
+            // cc.log(`移动信息：`, cellItem.index, cellItem.progress);
+            let moveTarget = Math.abs(0.5 + index / this.showCount);
+            moveTarget = moveTarget > 1 ? moveTarget % 1 : moveTarget;
 
-        cellItem.adsorptionAnim = cc.tween(cellItem)
-            .to(moveTime, { progress: moveTarget }, cc.easeSineOut())
-            .call(() => cellItem.adsorptionAnim = null)
+            //小于0的提前设置,防止移动到错误的位置
+            if (cellItem.progress < 0) {
+                cellItem.progress = 1 - Math.abs(cellItem.progress);
+                cellItem._applySetTime(cellItem.progress);
+            }
+            this.moveToTarget(cellItem, moveTarget, () => {
+                this.isTouchMove = false;
+                adsorptionCall && adsorptionCall();
+            });
+        });
+    }
+
+    /**
+     *  移动元素item到目标
+     *
+     * @private
+     * @param {CellItem} cellItem 移动元素item
+     * @param {number} moveTarget 移动目标
+     * @param {() => void} [playOverCall] 移动回调
+     * @memberof LoopList
+     */
+    private moveToTarget(cellItem: CellItem, moveTarget: number, playOverCall?: () => void) {
+        let smoothstep = (x: number, min: number, max: number) => {
+            if (x <= min) return min;
+            if (x >= max) return max;
+            x = (x - min) / (max - min);
+            return x;
+        };
+        let distence = Math.abs(moveTarget - cellItem.progress) * 10;
+        let moveTime = smoothstep(distence / 3, 0.25, 0.4);
+        let _i = 1;
+        cellItem._stopProgressAction();
+        cellItem._moveProgress = 0;
+        cellItem._adsorptionAnim = (cc.tween(cellItem) as cc.Tween)
+            .to(moveTime, {
+                progress: moveTarget,
+                _moveProgress: {
+                    value: 1,
+                    progress: function (start: number, end: number, current: number, ratio: number) {
+                        let pro = start + (end - start) * ratio;
+                        cc.log(_i);
+                        if (Number(pro.toFixed(1)) > 0.2 * _i) {
+                            _i++;
+                            // cc.log(pro);
+                        }
+                        return pro;
+                    }
+                }
+            }, cc.easeSineOut())
+            .call(() => {
+                cellItem._adsorptionAnim = null;
+                // cc.log("吸附动画完成");
+                playOverCall && playOverCall();
+            })
             .start();
     }
 
-    smoothstep(x: number, min: number, max: number) {
-        if (x <= min) return min;
-        if (x >= max) return max;
-        x = (x - min) / (max - min);
-        return x;
-    }
-
-    getIndex() {
+    /**
+     * 获取实际列表的index
+     *
+     * @private
+     * @return {*} 中心，最大，最新的index
+     * @memberof LoopList
+     */
+    private getIndex() {
         let centerIndex = 0, centerDis = 2;
         let maxIndex = 0, maxDis = 0;
         let minIndex = 0, minDis = 0;

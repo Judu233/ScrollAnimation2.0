@@ -27,10 +27,13 @@ export default class CellItem extends cc.Component {
     fictitousIndex = 0;
 
     /**挂载在节点上的动画节点 */
-    anim: cc.Animation = null;
+    _anim: cc.Animation = null;
 
     /**吸附tween */
-    adsorptionAnim: cc.Tween = null;
+    _adsorptionAnim: cc.Tween = null;
+
+    /**运动动画进度 */
+    _moveProgress: number = 0;
 
     @property(cc.Node)
     firstNode: cc.Node = null;
@@ -47,11 +50,11 @@ export default class CellItem extends cc.Component {
 
     init(mgr: LoopList, progress: number, index: number) {
         this.mgr = mgr;
-        this.anim = this.getComponent(cc.Animation);
+        this._anim = this.getComponent(cc.Animation);
         this.progress = progress;
         this.index = index;
-        this.anim.play();
-        this.applySetTime();
+        this._anim.play();
+        this._applySetTime();
     }
 
     /**从尾->头 or 头->尾 */
@@ -59,15 +62,27 @@ export default class CellItem extends cc.Component {
         this.firstNode.active = this.fictitousIndex == 0;
     }
 
-    applySetTime(time: number = this.anim.currentClip.duration * this._progress) {
-        if (this.anim.currentClip == null) return;
+    //#region  
+
+    /**停止正在缓动的计时 */
+    _stopProgressAction() {
+        if (this._adsorptionAnim) {
+            this._adsorptionAnim.stop();
+            this._adsorptionAnim = null;
+        }
+    }
+
+    _applySetTime(time: number = this._anim.currentClip.duration * this._progress) {
+        if (this._anim.currentClip == null) return;
 
         //[核心部分] 强制设置动画处于某一个时间节点
-        this.anim.setCurrentTime(time);
+        this._anim.setCurrentTime(time);
         this.progress = (this.progress % 1);
     }
 
     update(dt) {
-        this.applySetTime();
+        this._applySetTime();
     }
+
+    //#endregion
 }

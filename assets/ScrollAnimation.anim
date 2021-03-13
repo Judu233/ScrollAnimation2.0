@@ -57,7 +57,7 @@
         {
           "frame": 0,
           "value": 0,
-          "curve": "sineInOut"
+          "curve": "sineOut"
         },
         {
           "frame": 0.25,
@@ -76,7 +76,8 @@
             "__type__": "cc.Vec2",
             "x": 0.5,
             "y": 0.5
-          }
+          },
+          "curve": "sineIn"
         },
         {
           "frame": 0.25,
@@ -84,7 +85,8 @@
             "__type__": "cc.Vec2",
             "x": 0.7,
             "y": 0.7
-          }
+          },
+          "curve": "sineIn"
         },
         {
           "frame": 0.5,
