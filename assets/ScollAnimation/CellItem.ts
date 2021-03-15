@@ -52,6 +52,9 @@ export default class CellItem extends cc.Component {
         this.index = index;
         this._anim.play();
         this._applySetTime();
+        
+        //初始设置
+        this.label.string = `index:(${index})`;
     }
 
     /**从尾->头 or 头->尾 */
@@ -71,13 +74,12 @@ export default class CellItem extends cc.Component {
 
     _applySetTime(time: number = this._anim.currentClip.duration * this._progress) {
         if (this._anim.currentClip == null) return;
-
         //[核心部分] 强制设置动画处于某一个时间节点
         this._anim.setCurrentTime(time);
         this.progress = (this.progress % 1);
     }
 
-    update(dt) {
+    update(dt:number) {
         this._applySetTime();
     }
 
