@@ -32,9 +32,6 @@ export default class CellItem extends cc.Component {
     /**吸附tween */
     _adsorptionAnim: cc.Tween = null;
 
-    /**运动动画进度 */
-    _moveProgress: number = 0;
-
     @property(cc.Node)
     firstNode: cc.Node = null;
 
@@ -59,7 +56,7 @@ export default class CellItem extends cc.Component {
 
     /**从尾->头 or 头->尾 */
     switchBeginningAndEnd() {
-        this.firstNode.active = this.fictitousIndex == 0;
+        this.firstNode.active = this.fictitousIndex == 0; //判断是否是头部
     }
 
     //#region  

@@ -171,7 +171,7 @@
       "array": [
         0,
         0,
-        301.37684051698466,
+        302.48643556558346,
         0,
         0,
         0,
@@ -307,9 +307,8 @@
     "itemPrefab": {
       "__uuid__": "a440f2a9-1c99-4c59-bdad-2a7daab6ba3c"
     },
-    "showCount": 7,
-    "adsorptionFeatures": false,
-    "slideTouch": true,
+    "adsorptionFeatures": true,
+    "slideTouch": false,
     "slideDistence": 2,
     "_id": "cdCCBrj25FRKKCPuTg0OH5"
   },
