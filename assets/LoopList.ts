@@ -252,9 +252,9 @@ export default class LoopList extends cc.Component {
             this.curMaxIndex = maxIndex;
             let cellItem: CellItem;
             if (isArriveMax && this.isSwipeRight) {
-                cellItem = this._updateFictitousReduce();//向右滑动 ->  虚拟index减少
+                cellItem = this._getUpdateFictitousReduce();//向右滑动 ->  虚拟index减少
             } else if (isArriveMin && !this.isSwipeRight) {
-                cellItem = this._updateFictitousAdd();//向左滑动 虚拟index增加
+                cellItem = this._getUpdateFictitousAdd();//向左滑动 虚拟index增加
             }
             this._updateCellItem(cellItem);
             // cc.log(`小：${this.fictitousMinIndex}, 大：${this.fictitousMaxIndex}`);
@@ -273,7 +273,7 @@ export default class LoopList extends cc.Component {
     private _updateCellItem(cellItem?: CellItem) {
         if (cellItem) {
             try {
-                cc.log(`更新cellIndex:${cellItem.index},cellItem:`, cellItem);
+                // cc.log(`更新cellIndex:${cellItem.index},cellItem:`, cellItem);
                 cellItem.switchBeginningAndEnd();
                 cellItem.l2.string = this.testData[cellItem.fictitousIndex];
             } catch (error) {
@@ -283,13 +283,13 @@ export default class LoopList extends cc.Component {
     }
 
     /**
-     * 列表最小item的虚拟Index 更新
+     * 获取列表最小item，并更新虚拟Index 
      *  
      * @private
      * @return {*} CellItem
      * @memberof LoopList
      */
-    private _updateFictitousReduce(): CellItem {
+    private _getUpdateFictitousReduce(): CellItem {
         let cellItem = this.cellItemList[this.curMinIndex];
         if (this.fictitousMinIndex == 1) {
             this.fictitousMinIndex = 0;
@@ -314,13 +314,13 @@ export default class LoopList extends cc.Component {
     }
 
     /**
-     * 列表最大item的虚拟index更新
+     * 获取列表最大item，并更新虚拟index更新
      *
      * @private
      * @return {*} CellItem
      * @memberof LoopList
      */
-    private _updateFictitousAdd(): CellItem {
+    private _getUpdateFictitousAdd(): CellItem {
         let cellItem = this.cellItemList[this.curMaxIndex];
         if (this.fictitousMaxIndex == this.testData.length - 1) { //最大到达边界
             this.fictitousMaxIndex = 0;
@@ -343,7 +343,7 @@ export default class LoopList extends cc.Component {
         cellItem.fictitousIndex = this.fictitousMaxIndex;
         return cellItem;
     }
-    
+
     /**
      * 向左/右滑动一个单位
      *  注意:移动多个单位会有数据延迟，目前支持移动一个单位
@@ -361,18 +361,21 @@ export default class LoopList extends cc.Component {
             let moveDistence = 1 / (this._slideDis > 0 ? this.showCount : -this.showCount);
             let listLen = this.cellItemList.length - 1;
             let cellItem: CellItem;
+
+            //提前更新要切换的虚拟item的index
             if (this._slideDis > 0) {
                 this.curCenterIndex = (centerIndex - 1 < 0) ? listLen : centerIndex - 1;
                 this.curMaxIndex = (maxIndex - 1 < 0) ? listLen : maxIndex - 1;
                 this.curMinIndex = (minIndex - 1 < 0) ? listLen : minIndex - 1;
-                cellItem = this._updateFictitousReduce();
+                cellItem = this._getUpdateFictitousReduce();
             } else {
                 this.curCenterIndex = (centerIndex + 1 > listLen) ? 0 : centerIndex + 1;
                 this.curMaxIndex = (maxIndex + 1 > listLen) ? 0 : maxIndex + 1;
                 this.curMinIndex = (minIndex + 1 > listLen) ? 0 : minIndex + 1;
-                cellItem = this._updateFictitousAdd();
+                cellItem = this._getUpdateFictitousAdd();
             }
-            //提前更新要切换的虚拟item的index
+            this.fictitousCenterIndex = this.cellItemList[this.curCenterIndex].fictitousIndex;
+            cc.log(`centerIndex:${this.fictitousCenterIndex}`);
             this._updateCellItem(cellItem);
             newList.forEach((cellItem) => {
                 let moveTarget = cellItem.progress + moveDistence;
@@ -410,6 +413,8 @@ export default class LoopList extends cc.Component {
             this.moveToTarget(cellItem, moveTarget, () => {
                 this.isTouchMove = false;
                 this.updateFictitousIndex();
+                this.fictitousCenterIndex = this.cellItemList[centerIndex].fictitousIndex;
+                cc.log(`centerIndex:${this.fictitousCenterIndex}`);
                 adsorptionCall && adsorptionCall();
             });
         });
