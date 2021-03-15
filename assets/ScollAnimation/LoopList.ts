@@ -36,16 +36,16 @@ export default class LoopList extends cc.Component {
     public get showCount() { return this._showCount; }
 
     @property({
-        displayName: `吸附`,
-        tooltip: `自动吸附到最近计算好的item位置`
-    })
-    adsorptionFeatures = false;
-    
-    @property({
         displayName: `滑动加速值`,
         tooltip: `加快item移动速度，不包括卡片滑动，数值越大，滑动越快`,
     })
     swipeValue = 2;
+
+    @property({
+        displayName: `吸附`,
+        tooltip: `自动吸附到最近计算好的item位置`
+    })
+    adsorptionFeatures = false;
 
     @property({
         displayName: `切换`,
@@ -60,23 +60,45 @@ export default class LoopList extends cc.Component {
         visible(this: LoopList) { return !this.adsorptionFeatures && this.slideTouch; }
     })
     slideDistence = 10;
-    
+
+    @property({
+        displayName: `惯性`,
+        tooltip: ``,
+        visible(this: LoopList) { return !this.adsorptionFeatures && !this.slideTouch; }
+    })
+    inertia = false;
+
+    @property({
+        displayName: `减速率`,
+        tooltip: ``,
+        visible(this: LoopList) { return this.inertia; }
+    })
+    decelerationRate = 5;
 
     /**是否在触摸滑动 */
     private isTouchMove = false;
     /**是否向右滑动 */
     private isSwipeRight = false;
 
-    /*已经滑动的距离 */
-    private _slideDis = 0;
-    /**是否可以滑动 */
-    private _isCanSlide = true;
-
     /**存放cellitem的数组列表 */
     private cellItemList: CellItem[] = [];
     /**map */
     private cellItemMap: Map<string, CellItem> = new Map();
 
+    /*已经滑动的距离 */
+    private _slideDis = 0;
+    /**是否可以滑动 */
+    private _isCanSlide = true;
+    /**惯性dt */
+    private _inertiaDt = 0;
+    /**是否正在惯性滑动 */
+    private _isInertiaSlide = false;
+    /**惯性滚动速度 */
+    private _inertiaSpeed = 0;
+    /**衰减值 */
+    private attenuationValue = 0;
+    /**总衰减度 */
+    private allAttenuation = 0;
 
     //#region index
     /**记录当前的全局实际的Index */
@@ -115,13 +137,6 @@ export default class LoopList extends cc.Component {
         this.node.off(cc.Node.EventType.TOUCH_CANCEL, this.onTouchEnd, this);
     }
 
-    private fo(count: number) {
-        return (call: (i: number) => void) => {
-            for (let ife = 0; ife < count; ife++)
-                call && call.call(this, ife);
-        };
-    }
-
     /**
      * 初始化cellItem-> 计算progress->虚拟Index
      *
@@ -129,7 +144,7 @@ export default class LoopList extends cc.Component {
      */
     initCellsList() {
         //初始化数据
-        this.fo(15)(i => this.testData[i] = i.toString());
+        this.for(15)(i => this.testData[i] = i.toString());
         //设置添加的根节点->存放cellItem的
         this.contentContainer = this.contentContainer == null ? this.node : this.contentContainer;
 
@@ -137,7 +152,7 @@ export default class LoopList extends cc.Component {
         let prefab = this.itemPrefab;
         let maxProgressIndex = 0;
         this.fictitousCenterIndex = 5;  //开始的虚拟index
-        this.fo(this.showCount)(i => {
+        this.for(this.showCount)(i => {
             let child = cc.instantiate(prefab);
             this.contentContainer.addChild(child);
 
@@ -187,6 +202,8 @@ export default class LoopList extends cc.Component {
 
     onTouchStart() {
         this._slideDis = 0;
+        this._inertiaDt = 0;
+        this._isInertiaSlide = false;
     }
 
     onTouchMove(event: cc.Event.EventTouch) {
@@ -217,11 +234,19 @@ export default class LoopList extends cc.Component {
                 this._isCanSlide = true;
                 this.updateFictitousIndex();
             }); //滑动一个单位
+        } else if (this.inertia) {
+            //计算启动惯性的条件 ：当用户滚动的距离足够大（大于 15px）和持续时间足够短（小于 300ms）时
+            if (this._slideDis > 15 && this._inertiaDt < 0.3) {
+                this._isInertiaSlide = true;
+                this.attenuationValue = 1;
+                this.allAttenuation = 10;
+            }
+            this.isTouchMove = false;
         }
     }
 
     /**
-     * 切换滑动模式
+     * 切换滑动模式 --吸附滑动，卡片距离滑动，基本滑动
      *
      * @memberof LoopList
      */
@@ -327,6 +352,12 @@ export default class LoopList extends cc.Component {
     }
 
     //#region 
+    private for(count: number) {
+        return (call: (i: number) => void) => {
+            for (let ife = 0; ife < count; ife++)
+                call && call.call(this, ife);
+        };
+    }
     /**
      * 获取列表最小item，并更新虚拟Index 
      * @private
@@ -522,6 +553,24 @@ export default class LoopList extends cc.Component {
         // cc.log(`中心：${centerIndex}, 最小：${minIndex}, 最大：${maxIndex}`);
         // cc.log(`---------------------`)
         return { centerIndex, maxIndex, minIndex };
+    }
+
+    update(dt: number) {
+        if (this.inertia) {
+            if (this._isInertiaSlide) {
+                if (this.allAttenuation <= 0) {
+                    this._isInertiaSlide = false;
+                    return;
+                }
+                //开始惯性滑动
+                // 累计progress - dt * 衰减
+                let attenuation = dt * this.attenuationValue;
+                this.allAttenuation -= attenuation;
+                this.updateProgress(attenuation)
+            } else if (this.isTouchMove) {
+                this._inertiaDt += dt;
+            }
+        }
     }
     //#endregion
 }
