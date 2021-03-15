@@ -325,9 +325,10 @@
       "__uuid__": "a440f2a9-1c99-4c59-bdad-2a7daab6ba3c"
     },
     "_showCount": 3,
-    "adsorptionFeatures": true,
+    "adsorptionFeatures": false,
+    "swipeValue": 2,
     "slideTouch": true,
-    "slideDistence": 1,
+    "slideDistence": 300,
     "_id": "cdCCBrj25FRKKCPuTg0OH5"
   },
   {
@@ -584,8 +585,8 @@
       }
     ],
     "_useOriginalSize": false,
-    "_string": "button",
-    "_N$string": "button",
+    "_string": "卡片滑动",
+    "_N$string": "卡片滑动",
     "_fontSize": 20,
     "_lineHeight": 40,
     "_enableWrapText": false,
@@ -968,8 +969,8 @@
       }
     ],
     "_useOriginalSize": false,
-    "_string": "button",
-    "_N$string": "button",
+    "_string": "吸附滑动",
+    "_N$string": "吸附滑动",
     "_fontSize": 20,
     "_lineHeight": 40,
     "_enableWrapText": false,
@@ -1352,8 +1353,8 @@
       }
     ],
     "_useOriginalSize": false,
-    "_string": "button",
-    "_N$string": "button",
+    "_string": "基本滑动",
+    "_N$string": "基本滑动",
     "_fontSize": 20,
     "_lineHeight": 40,
     "_enableWrapText": false,
@@ -1736,8 +1737,8 @@
       }
     ],
     "_useOriginalSize": false,
-    "_string": "button",
-    "_N$string": "button",
+    "_string": "左滚动",
+    "_N$string": "左滚动",
     "_fontSize": 20,
     "_lineHeight": 40,
     "_enableWrapText": false,
@@ -2120,8 +2121,8 @@
       }
     ],
     "_useOriginalSize": false,
-    "_string": "button",
-    "_N$string": "button",
+    "_string": "右滚动",
+    "_N$string": "右滚动",
     "_fontSize": 20,
     "_lineHeight": 40,
     "_enableWrapText": false,
