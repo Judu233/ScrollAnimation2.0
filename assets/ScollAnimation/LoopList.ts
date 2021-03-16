@@ -89,7 +89,7 @@ export default class LoopList extends cc.Component {
         displayName: `惯性衰减值`,
         tooltip: `值越大，衰减速度越快,注意该值为0时，将开启无限滚动`,
         min: 0,
-        visible(this: LoopList) { return this.inertia; }
+        visible(this: LoopList) { return this.inertia && !this.slideTouch; }
     })
     inertiaSpeedAttenuation = 1;
 
@@ -236,18 +236,14 @@ export default class LoopList extends cc.Component {
         this.isTouchMove = true;
 
         //滑动模式->不用更新progress直接最后更新 吸附模式->更新item位置progress和显示数据
-        if (
-            this.adsorptionFeatures && !this.slideTouch ||
-            this.adsorptionFeatures && this.inertia ||
-            !this.adsorptionFeatures && !this.slideTouch && !this.inertia
-        ) {
+        if (!this.slideTouch) {
             this.updateProgress(delta);
             this.updateFictitousIndex();
         }
     }
 
     onTouchEnd() {
-        if (this.inertia) {
+        if (this.inertia && !this._isInertiaSlide) {
             this._startingInertia(() => {
                 //停止惯性滚动
             })
@@ -256,7 +252,7 @@ export default class LoopList extends cc.Component {
                 //停止滑动一个单位
 
             });
-        } else if (this.adsorptionFeatures) {
+        } else if (this.adsorptionFeatures && !this._isInertiaSlide) {
             this._adsorptionTotarget(() => {
 
             });
@@ -280,22 +276,34 @@ export default class LoopList extends cc.Component {
      * @memberof LoopList
      */
     switchTouchMode(e, mode: string) {
-        // switch (mode) {
-        //     case "1":
-        //         this.slideTouch = true;
-        //         this.adsorptionFeatures = false;
-        //         break;
-        //     case "2":
-        //         this.slideTouch = false;
-        //         this.adsorptionFeatures = true;
-        //         break;
-        //     case "3":
-        //         this.slideTouch = false;
-        //         this.adsorptionFeatures = false;
-        //         break;
-        //     default:
-        //         break;
-        // }
+        switch (mode) {
+            case "1":
+                this.slideTouch = true;
+                this.adsorptionFeatures = false;
+                this.inertia = false;
+                break;
+            case "2":
+                this.slideTouch = false;
+                this.adsorptionFeatures = true;
+                this.inertia = false;
+                break;
+            case "3":
+                this.slideTouch = false;
+                this.adsorptionFeatures = false;
+                this.inertia = true;
+                break;
+            case "4":
+                this.slideTouch = false;
+                this.adsorptionFeatures = false;
+                this.inertia = false;
+                break;
+            default:
+                break;
+        }
+    }
+
+    switchAdsorption() {
+        this.adsorptionFeatures = !this.adsorptionFeatures;
     }
 
     /**
@@ -464,13 +472,17 @@ export default class LoopList extends cc.Component {
      * @memberof LoopList
      */
     private _startingInertia(inertiaOverCall?: () => void, inertiaAdsortionOverCall?: () => void, adsorptionCall?: () => void) {
+        this._stopAllAnim();
+        this._inertiaSpeed = 0;
         //计算启动惯性的条件 ：当用户滚动的距离足够大（大于 15px）和持续时间足够短（小于 300ms）时
         if (Math.abs(this._slideDis) > 0.1 && this._inertiaDt < 0.5) {
             this._isInertiaSlide = true;
             this._inertiaOverCall = inertiaOverCall;
             this._inertiaAdsortionOverCall = inertiaAdsortionOverCall;
+            this.isSwipeRight = this._slideDis > 0;
             this._inertiaSpeed = Math.abs(this._slideDis / this._inertiaDt);
         } else if (this.adsorptionFeatures) {
+            this._stopAllAnim();
             this._adsorptionTotarget(() => {
                 adsorptionCall && adsorptionCall();
             });
@@ -487,11 +499,11 @@ export default class LoopList extends cc.Component {
     _updateInertia(dt: number) {
         if (this._isInertiaSlide) {
             if (this._inertiaSpeed <= 0.05) {
-                //速度小于0.01停止滚动
                 this._isInertiaSlide = false;
+                //速度小于0.01停止滚动
+                this._inertiaSpeed = 0;
                 if (this.adsorptionFeatures)
                     this._adsorptionTotarget(() => {
-                        //吸附到最近的目标
                         this._inertiaAdsortionOverCall && this._inertiaAdsortionOverCall();
                     });
                 return;
@@ -606,6 +618,15 @@ export default class LoopList extends cc.Component {
                 playOverCall && playOverCall();
             })
             .start();
+    }
+
+    /**
+     * 停止列表中所有的动画
+     * @private
+     * @memberof LoopList
+     */
+    private _stopAllAnim() {
+        this.cellItemList.forEach(item => item._stopProgressAction());
     }
 
     /**

@@ -84,14 +84,25 @@
       "__id__": 1
     },
     "_enabled": true,
-    "contentContainer": null,
+    "contentContainer": {
+      "__id__": 1
+    },
     "itemPrefab": {
       "__uuid__": "a440f2a9-1c99-4c59-bdad-2a7daab6ba3c"
     },
-    "_showCount": 7,
+    "_showCount": 3,
+    "swipeValue": 0,
     "adsorptionFeatures": false,
-    "slideTouch": true,
-    "slideDistence": 1,
+    "adsorptionSpeed": 1,
+    "adsorptionSection": {
+      "__type__": "cc.Vec2",
+      "x": 0.3,
+      "y": 0.4
+    },
+    "slideTouch": false,
+    "slideDistence": 300,
+    "inertia": false,
+    "inertiaSpeedAttenuation": 5,
     "_id": ""
   },
   {
@@ -132,7 +143,7 @@
       "__id__": 1
     },
     "asset": {
-      "__id__": 0
+      "__uuid__": "bf66f0a4-1637-4776-8cce-1cd3fdc435dc"
     },
     "fileId": "45E3iULSpBnLcsrRiRj3Dq",
     "sync": false
