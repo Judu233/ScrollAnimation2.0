@@ -268,7 +268,7 @@
     "_prefab": {
       "__id__": 8
     },
-    "_opacity": 97.665,
+    "_opacity": 255,
     "_color": {
       "__type__": "cc.Color",
       "r": 69,
@@ -329,6 +329,7 @@
     "itemPrefab": {
       "__uuid__": "a440f2a9-1c99-4c59-bdad-2a7daab6ba3c"
     },
+    "startFictitousIndex": 0,
     "_showCount": 3,
     "swipeValue": 0,
     "adsorptionFeatures": true,
@@ -342,6 +343,8 @@
     "slideDistence": 300,
     "inertia": true,
     "inertiaSpeedAttenuation": 5,
+    "inertiaStartDistence": 0.1,
+    "inertiaStartTime": 0.5,
     "_id": "cdCCBrj25FRKKCPuTg0OH5"
   },
   {
@@ -351,7 +354,7 @@
     "node": {
       "__id__": 5
     },
-    "_enabled": true,
+    "_enabled": false,
     "_materials": [
       {
         "__uuid__": "eca5d2f2-8ef6-41c2-bbe6-f9c79d09c432"

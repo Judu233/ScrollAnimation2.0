@@ -1,23 +1,35 @@
 /*
- * @Author: wss 
- * @Date: 2020-03-27 00:38:10 
- * @Last Modified by: wss
- * @Last Modified time: 2020-03-27 01:01:53
+ * @features: 主要功能
+ * @description: 内容说明
+ * @Date: 2021-03-16 14:13:23
+ * @Author: judu233(769471424@qq.com)
+ * @LastEditTime: 2021-03-16 18:33:33
+ * @LastEditors: judu233
  */
 
 import LoopList from "./LoopList";
 
+const { ccclass, property, executeInEditMode, requireComponent } = cc._decorator;
 
-const { ccclass, property, executeInEditMode } = cc._decorator;
+interface ICellItem {
+    mgr: LoopList;
+    index: number;
+    fictitousIndex: number;
+    progress: number;
+    _anim: cc.Animation;
+    _adsorptionAnim: cc.Tween;
+    init(mgr: LoopList, progress: number, index: number): void;
+    initFitousIndex(index: number): void;
+    updateItemData(): void;
+    _stopProgressAction(): void;
+    _applySetTime(time?: number): void;
+}
 
 @ccclass
-export default class CellItem extends cc.Component {
-    @property(cc.Label)
-    label: cc.Label = null;
+@requireComponent(cc.Animation)
+export default class CellItem extends cc.Component implements ICellItem {
     @property(cc.Label)
     l2: cc.Label = null;
-    @property(cc.Node)
-    firstNode: cc.Node = null;
 
     /**管理列表 */
     mgr: LoopList = null;
@@ -34,43 +46,81 @@ export default class CellItem extends cc.Component {
         this._progress = v;
     }
 
+    /**
+     * 初始化item
+     * @param {LoopList} mgr LoopList
+     * @param {number} progress 该item的progress
+     * @param {number} index 该item的实际Index
+     * @memberof CellItem
+     */
     init(mgr: LoopList, progress: number, index: number) {
         this.mgr = mgr;
         this._anim = this.getComponent(cc.Animation);
         this.progress = progress;
         this.index = index;
-        this._anim.play();
+        if (this._anim && this._anim.defaultClip) {
+            if (this._anim.defaultClip.wrapMode != cc.WrapMode.Loop) {
+                cc.warn(`动画clip未设置LOOP循环模式`);
+            }
+            this._anim.play();
+        } else {
+            cc.error(`未设置默认的clip`);
+            this._isError = true;
+        }
         this._applySetTime();
 
-        //初始设置
-        this.label.string = `index:(${index})`;
     }
 
-    /**从尾->头 or 头->尾 */
+    /**
+     * 初始化虚拟Index
+     * @param {number} index 虚拟index
+     * @memberof CellItem
+     */
+    initFitousIndex(index: number) {
+        this.fictitousIndex = index;
+        this.l2.string = String(index);
+    }
+
+    /**
+     * 更新item的数据，该方法只有在切换头尾的item的时候调用
+     * @memberof CellItem
+     */
     updateItemData() {
-        this.firstNode.active = this.fictitousIndex == 0; //判断是否是头部
-        this.l2.string = this.mgr.testData[this.fictitousIndex];
+        this.l2.string = String(this.fictitousIndex);
     }
 
+    /**
+     * 生命周期
+     * @param {number} dt 时间dt
+     * @memberof CellItem
+     */
     update(dt: number) {
         this._applySetTime();
     }
 
     //#region  
+    _isError = false;
     /**挂载在节点上的动画节点 */
     _anim: cc.Animation = null;
     /**吸附tween */
     _adsorptionAnim: cc.Tween = null;
-    /**停止正在缓动的计时 */
+    /**停止正在缓动的动画 */
     _stopProgressAction() {
         if (this._adsorptionAnim) {
             this._adsorptionAnim.stop();
             this._adsorptionAnim = null;
         }
     }
-    /**更新时间轴 */
-    _applySetTime(time: number = this._anim.currentClip.duration * this._progress) {
-        if (this._anim.currentClip == null) return;
+    /**
+     * 更新时间轴
+     * @param {number} [time] 设置时间  
+     * @return {*} 
+     * @memberof CellItem
+     */
+    _applySetTime(time?: number) {
+        if (!this._anim || !this._anim.currentClip || this._isError) return;
+        if (time == undefined)
+            time = this._anim.currentClip.duration * this._progress;
         //[核心部分] 强制设置动画处于某一个时间节点
         this._anim.setCurrentTime(time);
         this.progress = (this.progress % 1);
