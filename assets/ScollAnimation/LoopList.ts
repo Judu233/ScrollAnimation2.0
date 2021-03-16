@@ -38,6 +38,7 @@ export default class LoopList extends cc.Component {
     @property({
         displayName: `滑动加速值`,
         tooltip: `加快item移动速度，不包括卡片滑动，数值越大，滑动越快`,
+        min: 0
     })
     swipeValue = 2;
 
@@ -48,9 +49,24 @@ export default class LoopList extends cc.Component {
     adsorptionFeatures = false;
 
     @property({
+        displayName: `吸附速度`,
+        tooltip: `值越大，吸附速度越快`,
+        min: 0,
+        visible(this: LoopList) { return this.adsorptionFeatures; }
+    })
+    adsorptionSpeed = 5;
+
+    @property({
+        displayName: `吸附时间区间`,
+        tooltip: `吸附动画的时间插值计算在区间内`,
+        visible(this: LoopList) { return this.adsorptionFeatures; }
+    })
+    adsorptionSection: cc.Vec2 = cc.v2(0.25, 0.4);
+
+    @property({
         displayName: `切换`,
         tooltip: `类似卡片滑动切换`,
-        visible(this: LoopList) { return !this.adsorptionFeatures; }
+        visible(this: LoopList) { return this.adsorptionFeatures; }
     })
     slideTouch = false;
 
@@ -63,17 +79,19 @@ export default class LoopList extends cc.Component {
 
     @property({
         displayName: `惯性`,
-        tooltip: ``,
-        visible(this: LoopList) { return !this.adsorptionFeatures && !this.slideTouch; }
+        tooltip: `滑动结束时，带有惯性的滚动`,
+        visible(this: LoopList) { return !this.slideTouch; }
     })
     inertia = false;
 
+    /**速度衰减值 */
     @property({
-        displayName: `减速率`,
-        tooltip: ``,
+        displayName: `惯性衰减值`,
+        tooltip: `值越大，衰减速度越快,注意该值为0时，将开启无限滚动`,
+        min: 0,
         visible(this: LoopList) { return this.inertia; }
     })
-    decelerationRate = 5;
+    inertiaSpeedAttenuation = 1;
 
     /**是否在触摸滑动 */
     private isTouchMove = false;
@@ -89,16 +107,17 @@ export default class LoopList extends cc.Component {
     private _slideDis = 0;
     /**是否可以滑动 */
     private _isCanSlide = true;
-    /**惯性dt */
-    private _inertiaDt = 0;
     /**是否正在惯性滑动 */
     private _isInertiaSlide = false;
+    /**惯性dt */
+    private _inertiaDt = 0;
     /**惯性滚动速度 */
     private _inertiaSpeed = 0;
-    /**衰减值 */
-    private attenuationValue = 0;
-    /**总衰减度 */
-    private allAttenuation = 0;
+
+    /**惯性结束回调 */
+    private _inertiaOverCall: () => void;
+    /**惯性结束后，如果有开启吸附的吸附结束回调 */
+    private _inertiaAdsortionOverCall: () => void;
 
     //#region index
     /**记录当前的全局实际的Index */
@@ -144,7 +163,7 @@ export default class LoopList extends cc.Component {
      */
     initCellsList() {
         //初始化数据
-        this.for(15)(i => this.testData[i] = i.toString());
+        this._for(15)(i => this.testData[i] = i.toString());
         //设置添加的根节点->存放cellItem的
         this.contentContainer = this.contentContainer == null ? this.node : this.contentContainer;
 
@@ -152,7 +171,7 @@ export default class LoopList extends cc.Component {
         let prefab = this.itemPrefab;
         let maxProgressIndex = 0;
         this.fictitousCenterIndex = 5;  //开始的虚拟index
-        this.for(this.showCount)(i => {
+        this._for(this.showCount)(i => {
             let child = cc.instantiate(prefab);
             this.contentContainer.addChild(child);
 
@@ -209,69 +228,78 @@ export default class LoopList extends cc.Component {
     onTouchMove(event: cc.Event.EventTouch) {
         //计算滑动距离
         let delta = event.getDelta().x / this.node.width;
-        this.isSwipeRight = delta > 0; // >0 右移动， <0 左移动
+        //>0 右移动，<0 左移动
+        this.isSwipeRight = delta > 0;
+        //计算滑动值
         delta += (this.isSwipeRight ? this.swipeValue : - this.swipeValue) / 1000;
         this._slideDis += delta;
         this.isTouchMove = true;
 
         //滑动模式->不用更新progress直接最后更新 吸附模式->更新item位置progress和显示数据
-        if (this.adsorptionFeatures || !this.slideTouch) {
+        if (
+            this.adsorptionFeatures && !this.slideTouch ||
+            this.adsorptionFeatures && this.inertia ||
+            !this.adsorptionFeatures && !this.slideTouch && !this.inertia
+        ) {
             this.updateProgress(delta);
             this.updateFictitousIndex();
         }
     }
 
     onTouchEnd() {
-        if (this.adsorptionFeatures) {
-            this._adsorptionTotarget(() => {
-                this.isTouchMove = false;
-                this._isCanSlide = true;
-                this.updateFictitousIndex();
-            });//吸附到最近的目标
+        if (this.inertia) {
+            this._startingInertia(() => {
+                //停止惯性滚动
+            })
         } else if (this.slideTouch) {
             this._slideToTarget(() => {
-                this.isTouchMove = false;
-                this._isCanSlide = true;
-                this.updateFictitousIndex();
-            }); //滑动一个单位
-        } else if (this.inertia) {
-            //计算启动惯性的条件 ：当用户滚动的距离足够大（大于 15px）和持续时间足够短（小于 300ms）时
-            if (this._slideDis > 15 && this._inertiaDt < 0.3) {
-                this._isInertiaSlide = true;
-                this.attenuationValue = 1;
-                this.allAttenuation = 10;
-            }
-            this.isTouchMove = false;
+                //停止滑动一个单位
+
+            });
+        } else if (this.adsorptionFeatures) {
+            this._adsorptionTotarget(() => {
+
+            });
+        }
+    }
+
+    /**
+     * 生命周期函数
+     *
+     * @param {number} dt 时间
+     * @memberof LoopList
+     */
+    update(dt: number) {
+        if (this.inertia) {
+            this._updateInertia(dt);
         }
     }
 
     /**
      * 切换滑动模式 --吸附滑动，卡片距离滑动，基本滑动
-     *
      * @memberof LoopList
      */
     switchTouchMode(e, mode: string) {
-        switch (mode) {
-            case "1":
-                this.slideTouch = true;
-                this.adsorptionFeatures = false;
-                break;
-            case "2":
-                this.slideTouch = false;
-                this.adsorptionFeatures = true;
-                break;
-            case "3":
-                this.slideTouch = false;
-                this.adsorptionFeatures = false;
-                break;
-            default:
-                break;
-        }
+        // switch (mode) {
+        //     case "1":
+        //         this.slideTouch = true;
+        //         this.adsorptionFeatures = false;
+        //         break;
+        //     case "2":
+        //         this.slideTouch = false;
+        //         this.adsorptionFeatures = true;
+        //         break;
+        //     case "3":
+        //         this.slideTouch = false;
+        //         this.adsorptionFeatures = false;
+        //         break;
+        //     default:
+        //         break;
+        // }
     }
 
     /**
      * 点击向左/右滑动一个单位
-     *
      * @param {*} e 点击事件
      * @param {string} dir 方向 
      * @memberof LoopList
@@ -283,12 +311,11 @@ export default class LoopList extends cc.Component {
             this._isCanSlide = true;
             this._isCanSlide = true;
             this.updateFictitousIndex();
-        }); //滑动一个单位
+        });
     }
 
     /**
      * 更新item的数据
-     *  
      * @private
      * @param {CellItem} [cellItem] 要更新虚拟index的item
      * @memberof LoopList
@@ -323,7 +350,6 @@ export default class LoopList extends cc.Component {
 
     /**
      * 判断更新头/尾部需要更新虚拟index的cellItem
-     *
      * @private
      * @memberof LoopList
      */
@@ -352,7 +378,142 @@ export default class LoopList extends cc.Component {
     }
 
     //#region 
-    private for(count: number) {
+    /**
+     *  向左/右滑动一个单位
+     *  注意:移动多个单位会有数据延迟，目前支持移动一个单位
+     * @private
+     * @param {() => void} [slideCall] 滑动完成回调
+     * @memberof LoopList
+     */
+    private _slideToTarget(slideCall?: () => void) {
+        // cc.log(`滑动距离:${this._slideDis}`);
+        if (Math.abs(this._slideDis * 1000) >= this.slideDistence && this._isCanSlide) {
+            this._isCanSlide = false;
+            this.isSwipeRight = this._slideDis > 0;
+
+            let { centerIndex, maxIndex, minIndex } = this._getIndex();
+            let newList = [...this.cellItemList.slice(centerIndex), ...this.cellItemList.slice(0, centerIndex)];
+            let moveDistence = 1 / (this.isSwipeRight ? this.showCount : -this.showCount);
+            let listLen = this.cellItemList.length - 1;
+            let cellItem: CellItem;
+            //提前更新要切换的虚拟item的index
+            if (this.isSwipeRight) {
+                this.curCenterIndex = (centerIndex - 1 < 0) ? listLen : centerIndex - 1;
+                this.curMaxIndex = (maxIndex - 1 < 0) ? listLen : maxIndex - 1;
+                this.curMinIndex = (minIndex - 1 < 0) ? listLen : minIndex - 1;
+                cellItem = this._getUpdateFictitousReduce();
+            } else {
+                this.curCenterIndex = (centerIndex + 1 > listLen) ? 0 : centerIndex + 1;
+                this.curMaxIndex = (maxIndex + 1 > listLen) ? 0 : maxIndex + 1;
+                this.curMinIndex = (minIndex + 1 > listLen) ? 0 : minIndex + 1;
+                cellItem = this._getUpdateFictitousAdd();
+            }
+            this.fictitousCenterIndex = this.cellItemList[this.curCenterIndex].fictitousIndex;
+            this.updateCellItemData(cellItem);
+            //对列表容器中item进行移动
+            newList.forEach((cellItem) => {
+                let moveTarget = cellItem.progress + moveDistence;
+                // cc.log(`moveTarget: ${moveTarget.toFixed(1)}, progress:${cellItem.progress.toFixed(1)}`);
+                this._moveToTarget(cellItem, moveTarget, () => {
+                    this.isTouchMove = false;
+                    this._isCanSlide = true;
+                    this.updateFictitousIndex();
+                    slideCall && slideCall();
+                });
+            })
+            this._slideDis = 0;
+        }
+    }
+
+    /**
+     * 吸附到附近最近的一个目标
+     * @private
+     * @param {() => void} [adsorptionCall] 吸附完成回调
+     * @memberof LoopList
+     */
+    private _adsorptionTotarget(adsorptionCall?: () => void) {
+        let { centerIndex } = this._getIndex();
+        let newList = [...this.cellItemList.slice(centerIndex), ...this.cellItemList.slice(0, centerIndex)];
+
+        this.fictitousCenterIndex = this.cellItemList[centerIndex].fictitousIndex;
+        newList.forEach((cellItem, index) => {
+            let moveTarget = Math.abs(0.5 + index / this.showCount);
+            moveTarget = moveTarget > 1 ? moveTarget % 1 : moveTarget;
+
+            //小于0的提前设置,防止错误移动
+            if (cellItem.progress < 0) {
+                cellItem.progress = 1 - Math.abs(cellItem.progress);
+            }
+            // cc.log(`移动信息：index:${cellItem.index}, progress:${cellItem.progress.toFixed(1)}, moveTarget:${moveTarget.toFixed(1)}`);
+            this._moveToTarget(cellItem, moveTarget, () => {
+                this.isTouchMove = false;
+                this._isCanSlide = true;
+                this.updateFictitousIndex();
+                adsorptionCall && adsorptionCall();
+            });
+        });
+        // cc.log(`-------`);
+    }
+
+    /**
+     *  开启惯性滑动
+     * @private
+     * @param {() => void} [inertiaOverCall] 惯性滑动停止回调
+     * @param {() => void} [inertiaAdsortionOverCall] 惯性滑动结束后，吸附滑动停止回调
+     * @param {() => void} [adsorptionCall] 没有触发惯性滑动，但开启了吸附滑动的停止回调
+     * @memberof LoopList
+     */
+    private _startingInertia(inertiaOverCall?: () => void, inertiaAdsortionOverCall?: () => void, adsorptionCall?: () => void) {
+        //计算启动惯性的条件 ：当用户滚动的距离足够大（大于 15px）和持续时间足够短（小于 300ms）时
+        if (Math.abs(this._slideDis) > 0.1 && this._inertiaDt < 0.5) {
+            this._isInertiaSlide = true;
+            this._inertiaOverCall = inertiaOverCall;
+            this._inertiaAdsortionOverCall = inertiaAdsortionOverCall;
+            this._inertiaSpeed = Math.abs(this._slideDis / this._inertiaDt);
+        } else if (this.adsorptionFeatures) {
+            this._adsorptionTotarget(() => {
+                adsorptionCall && adsorptionCall();
+            });
+        } else this.isTouchMove = false;
+    }
+
+    /**
+     * 更新惯性滑动
+     *
+     * @param {number} dt 时间
+     * @return {*} 
+     * @memberof LoopList
+     */
+    _updateInertia(dt: number) {
+        if (this._isInertiaSlide) {
+            if (this._inertiaSpeed <= 0.05) {
+                //速度小于0.01停止滚动
+                this._isInertiaSlide = false;
+                if (this.adsorptionFeatures)
+                    this._adsorptionTotarget(() => {
+                        //吸附到最近的目标
+                        this._inertiaAdsortionOverCall && this._inertiaAdsortionOverCall();
+                    });
+                return;
+            }
+            //开始惯性滑动
+            let attenuation = dt * this._inertiaSpeed * (this.isSwipeRight ? 1 : -1);
+            this._inertiaSpeed = cc.misc.lerp(this._inertiaSpeed, 0, this.inertiaSpeedAttenuation / 100);
+            this.updateProgress(attenuation);
+            this.updateFictitousIndex();
+        } else if (this.isTouchMove) {
+            this._inertiaDt += dt;
+        }
+    }
+
+    /**
+     * 一个遍历指定返回函数的方法
+     * @private
+     * @param {number} count 遍历次数
+     * @return {*} 遍历的方法
+     * @memberof LoopList
+     */
+    private _for(count: number) {
         return (call: (i: number) => void) => {
             for (let ife = 0; ife < count; ife++)
                 call && call.call(this, ife);
@@ -419,79 +580,6 @@ export default class LoopList extends cc.Component {
     }
 
     /**
-     *  向左/右滑动一个单位
-     *  注意:移动多个单位会有数据延迟，目前支持移动一个单位
-     * @private
-     * @param {() => void} [slideCall] 滑动完成回调
-     * @memberof LoopList
-     */
-    private _slideToTarget(slideCall?: () => void) {
-        // cc.log(`滑动距离:${this._slideDis}`);
-        if (Math.abs(this._slideDis * 1000) >= this.slideDistence && this._isCanSlide) {
-            this._isCanSlide = false;
-            this.isSwipeRight = this._slideDis > 0;
-
-            let { centerIndex, maxIndex, minIndex } = this._getIndex();
-            let newList = [...this.cellItemList.slice(centerIndex), ...this.cellItemList.slice(0, centerIndex)];
-            let moveDistence = 1 / (this.isSwipeRight ? this.showCount : -this.showCount);
-            let listLen = this.cellItemList.length - 1;
-            let cellItem: CellItem;
-            //提前更新要切换的虚拟item的index
-            if (this.isSwipeRight) {
-                this.curCenterIndex = (centerIndex - 1 < 0) ? listLen : centerIndex - 1;
-                this.curMaxIndex = (maxIndex - 1 < 0) ? listLen : maxIndex - 1;
-                this.curMinIndex = (minIndex - 1 < 0) ? listLen : minIndex - 1;
-                cellItem = this._getUpdateFictitousReduce();
-            } else {
-                this.curCenterIndex = (centerIndex + 1 > listLen) ? 0 : centerIndex + 1;
-                this.curMaxIndex = (maxIndex + 1 > listLen) ? 0 : maxIndex + 1;
-                this.curMinIndex = (minIndex + 1 > listLen) ? 0 : minIndex + 1;
-                cellItem = this._getUpdateFictitousAdd();
-            }
-            this.fictitousCenterIndex = this.cellItemList[this.curCenterIndex].fictitousIndex;
-            this.updateCellItemData(cellItem);
-            //移动item
-            newList.forEach((cellItem) => {
-                let moveTarget = cellItem.progress + moveDistence;
-                // cc.log(`moveTarget: ${moveTarget.toFixed(1)}, progress:${cellItem.progress.toFixed(1)}`);
-                this._moveToTarget(cellItem, moveTarget, () => {
-                    slideCall && slideCall();
-                });
-            })
-            this._slideDis = 0;
-        }
-    }
-
-    /**
-     * 吸附到附近最近的一个目标
-     * @private
-     * @param {() => void} [adsorptionCall] 吸附完成回调
-     * @memberof LoopList
-     */
-    private _adsorptionTotarget(adsorptionCall?: () => void) {
-        let { centerIndex } = this._getIndex();
-        let newList = [...this.cellItemList.slice(centerIndex), ...this.cellItemList.slice(0, centerIndex)];
-
-        this.fictitousCenterIndex = this.cellItemList[centerIndex].fictitousIndex;
-        newList.forEach((cellItem, index) => {
-            let moveTarget = Math.abs(0.5 + index / this.showCount);
-            moveTarget = moveTarget > 1 ? moveTarget % 1 : moveTarget;
-
-            // cc.log(`移动信息：index:${cellItem.index}, progress:${cellItem.progress.toFixed(1)}, moveTarget:${moveTarget.toFixed(1)}`);
-            //小于0的提前设置,防止移动到错误的位置
-            if (cellItem.progress < 0) {
-                cellItem.progress = 1 - Math.abs(cellItem.progress);
-                cellItem._applySetTime(cellItem.progress);
-            }
-            //移动item
-            this._moveToTarget(cellItem, moveTarget, () => {
-                adsorptionCall && adsorptionCall();
-            });
-        });
-        // cc.log(`-------`);
-    }
-
-    /**
      *  移动元素item到目标
      * @private
      * @param {CellItem} cellItem 移动元素item
@@ -500,15 +588,14 @@ export default class LoopList extends cc.Component {
      * @memberof LoopList
      */
     private _moveToTarget(cellItem: CellItem, moveTarget: number, playOverCall?: () => void) {
-        let smoothstep = (x: number, min: number, max: number) => {
-            if (x <= min) return min;
-            if (x >= max) return max;
-            x = (x - min) / (max - min);
-            return x;
-        };
-        //计算吸附平滑时间区间
-        let distence = Math.abs(moveTarget - cellItem.progress) * 10;
-        let moveTime = smoothstep(distence / 3, 0.25, 0.4);
+        let distence = Math.abs(moveTarget - cellItem.progress) / this.adsorptionSpeed * 100;
+        let x = this.adsorptionSection.x, y = this.adsorptionSection.y;
+        cc.misc.clampf(x, 0, x);
+        cc.misc.clampf(y, 0, y);
+
+        //进行吸附时间插值计算
+        let moveTime = cc.misc.lerp(x, y, distence);
+        moveTime = cc.misc.clampf(moveTime, x, y);
         cellItem._stopProgressAction();
         cellItem._adsorptionAnim = (cc.tween(cellItem) as cc.Tween)
             .to(moveTime, { progress: moveTarget }, cc.easeSineOut())
@@ -553,24 +640,6 @@ export default class LoopList extends cc.Component {
         // cc.log(`中心：${centerIndex}, 最小：${minIndex}, 最大：${maxIndex}`);
         // cc.log(`---------------------`)
         return { centerIndex, maxIndex, minIndex };
-    }
-
-    update(dt: number) {
-        if (this.inertia) {
-            if (this._isInertiaSlide) {
-                if (this.allAttenuation <= 0) {
-                    this._isInertiaSlide = false;
-                    return;
-                }
-                //开始惯性滑动
-                // 累计progress - dt * 衰减
-                let attenuation = dt * this.attenuationValue;
-                this.allAttenuation -= attenuation;
-                this.updateProgress(attenuation)
-            } else if (this.isTouchMove) {
-                this._inertiaDt += dt;
-            }
-        }
     }
     //#endregion
 }
