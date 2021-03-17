@@ -3,7 +3,7 @@
  * @description: 实现的滑动列表
  * @Date: 2021-03-16 14:13:23
  * @Author: judu233(769471424@qq.com)
- * @LastEditTime: 2021-03-16 19:22:42
+ * @LastEditTime: 2021-03-17 14:13:33
  * @LastEditors: judu233
  */
 
@@ -187,14 +187,14 @@ export default class LoopList extends cc.Component {
     }
 
     /**
-     * 初始化cellItem-> 计算progress->虚拟Index
-     * @memberof LoopList
-     */
+    * 初始化cellItem-> 计算progress->虚拟Index
+    * @memberof LoopList
+    */
     initCellsList() {
         try {
             //设置添加的根节点->存放cellItem的
             this.contentContainer = this.contentContainer == null ? this.node : this.contentContainer;
-            //重新设置maxIndex
+
             this._maxIndexOfProgress = 0;
             //限制开始虚拟index不超数据长度
             this.fictitousCenterIndex = cc.misc.clampf(this.startFictitousIndex, 0,
@@ -213,7 +213,8 @@ export default class LoopList extends cc.Component {
             });
             //设置对应index
             this._setAllIndex(this._maxIndexOfProgress);
-
+            //自动吸附到最近
+            this._adsorptionTotarget(() => { });
         } catch (error) {
             cc.error(`LoopList:初始化列表失败`, error);
             return;
@@ -359,7 +360,11 @@ export default class LoopList extends cc.Component {
      */
     clear() {
         this.cellItemList.forEach(cellItem => this._putItemNode(cellItem.node));
+        this.cellItemList.length = 0;
+        this.ListData.length = 0;
+        this.cellItemMap.clear();
     }
+
 
     /**
      * 向数据列表里添加数据
@@ -428,6 +433,7 @@ export default class LoopList extends cc.Component {
             } else if (isArriveMin && !this.isSwipeRight) {
                 cellItem = this._getUpdateFictitousAdd();//向左滑动 虚拟index增加
             }
+            this.fictitousCenterIndex = this.cellItemList[centerIndex].fictitousIndex;
             this.updateCellItemData(cellItem);
             // cc.log(`小：${this.fictitousMinIndex}, 大：${this.fictitousMaxIndex}`);
         }
@@ -474,18 +480,20 @@ export default class LoopList extends cc.Component {
     /**存放item节点的对象池 */
     private _itemNodePool: cc.NodePool = new cc.NodePool(`LoopList_itemList`);
     /**
-     * 从节点池中获取节点，节点池不够的话直接克隆一个
+     * 从对象池中获取一个节点item
+     *
      * @private
-     * @return {*} 节点
+     * @return {*} cc.Node
      * @memberof LoopList
      */
-    private _getItemNode() {
+    private _getItemNode(): cc.Node {
         try {
             let item = this._itemNodePool.get();
             if (!item) {
                 item = cc.instantiate(this.itemPrefab);
-                this.contentContainer.addChild(item);
             }
+            if (!item.parent)
+                this.contentContainer.addChild(item);
             return item;
         } catch (error) {
             cc.error(`LoopList_itemList获取节点失败`);
@@ -493,9 +501,9 @@ export default class LoopList extends cc.Component {
     }
 
     /**
-     * 存入节点池
+     * 存入节点到对象池
      * @private
-     * @param {cc.Node} item 节点
+     * @param {cc.Node} item 对象节点
      * @memberof LoopList
      */
     private _putItemNode(item: cc.Node) {
@@ -504,6 +512,7 @@ export default class LoopList extends cc.Component {
         else
             cc.warn(`LoopList_itemList存储节点失败！`, item);
     }
+
     /**
      *  向左/右滑动一个单位
      *  注意:移动多个单位会有数据延迟，目前支持移动一个单位
@@ -711,22 +720,29 @@ export default class LoopList extends cc.Component {
     }
 
     /**
-     *  移动元素item到目标
-     * @private
-     * @param {CellItem} cellItem 移动元素item
-     * @param {number} moveTarget 移动目标
-     * @param {() => void} [playOverCall] 移动回调
-     * @memberof LoopList
-     */
+    *  移动元素item到目标
+    * @private
+    * @param {CellItem} cellItem 移动元素item
+    * @param {number} moveTarget 移动目标
+    * @param {() => void} [playOverCall] 移动回调
+    * @memberof LoopList
+    */
     private _moveToTarget(cellItem: CellItem, moveTarget: number, playOverCall?: () => void) {
+        //判断是否需要移动
+        if (cellItem.progress == moveTarget) {
+            playOverCall();
+            return;
+        }
+
+        //进行吸附时间插值计算
         let distence = Math.abs(moveTarget - cellItem.progress) / this.adsorptionSpeed * 100;
         let x = this.adsorptionSection.x, y = this.adsorptionSection.y;
         cc.misc.clampf(x, 0, x);
         cc.misc.clampf(y, 0, y);
-
-        //进行吸附时间插值计算
         let moveTime = cc.misc.lerp(x, y, distence);
         moveTime = cc.misc.clampf(moveTime, x, y);
+
+        //设置移动吸附动画
         cellItem._stopProgressAction();
         cellItem._adsorptionAnim = (cc.tween(cellItem) as cc.Tween)
             .to(moveTime, { progress: moveTarget }, cc.easeSineOut())

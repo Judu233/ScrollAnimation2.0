@@ -3,7 +3,7 @@
  * @description: 内容说明
  * @Date: 2021-03-16 14:13:23
  * @Author: judu233(769471424@qq.com)
- * @LastEditTime: 2021-03-16 18:33:33
+ * @LastEditTime: 2021-03-17 14:13:03
  * @LastEditors: judu233
  */
 
@@ -67,6 +67,7 @@ export default class CellItem extends cc.Component implements ICellItem {
             cc.error(`未设置默认的clip`);
             this._isError = true;
         }
+        this._stopProgressAction();
         this._applySetTime();
 
     }
