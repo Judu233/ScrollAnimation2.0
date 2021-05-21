@@ -3,7 +3,7 @@
  * @description: 内容说明
  * @Date: 2021-03-16 14:13:23
  * @Author: judu233(769471424@qq.com)
- * @LastEditTime: 2021-03-17 14:13:03
+ * @LastEditTime: 2021-05-10 14:02:15
  * @LastEditors: judu233
  */
 
@@ -28,8 +28,9 @@ interface ICellItem {
 @ccclass
 @requireComponent(cc.Animation)
 export default class CellItem extends cc.Component implements ICellItem {
-    @property(cc.Label)
-    l2: cc.Label = null;
+    testDebug = false;
+    testFictiousIndex_lb: cc.Label = null;
+    testIndex_lb: cc.Label = null;
 
     /**管理列表 */
     mgr: LoopList = null;
@@ -38,11 +39,17 @@ export default class CellItem extends cc.Component implements ICellItem {
     /**当前item的虚拟index */
     fictitousIndex = 0;
 
+    /**更新item回调 */
+    upDateItemCall: () => void;
+
     /**动画完成进度 */
     private _progress: number = 0.5;
     get progress(): number { return this._progress; }
     set progress(v: number) {
         // cc.log(`设置的progress:${v}`);
+        if(isNaN(v))
+            return;
+            // debugger;
         this._progress = v;
     }
 
@@ -70,6 +77,12 @@ export default class CellItem extends cc.Component implements ICellItem {
         this._stopProgressAction();
         this._applySetTime();
 
+        //调试label
+        if (this.testDebug) {
+            this.testIndex_lb = new cc.Node(`testIndexLabel`).addComponent(cc.Label);
+            this.testIndex_lb.string = String(index);
+            this.node.addChild(this.testIndex_lb.node, 100);
+        }
     }
 
     /**
@@ -79,7 +92,12 @@ export default class CellItem extends cc.Component implements ICellItem {
      */
     initFitousIndex(index: number) {
         this.fictitousIndex = index;
-        this.l2.string = String(index);
+        //调试label
+        if (this.testDebug) {
+            this.testFictiousIndex_lb = new cc.Node(`testFictiousIndex_lb`).addComponent(cc.Label);
+            this.testFictiousIndex_lb.string = String(index);
+            this.node.addChild(this.testFictiousIndex_lb.node, 101);
+        }
     }
 
     /**
@@ -87,7 +105,9 @@ export default class CellItem extends cc.Component implements ICellItem {
      * @memberof CellItem
      */
     updateItemData() {
-        this.l2.string = String(this.fictitousIndex);
+        this.testFictiousIndex_lb && (this.testFictiousIndex_lb.string = String(this.fictitousIndex));
+        this.testIndex_lb && (this.testIndex_lb.string = String(this.index));
+        this.upDateItemCall && this.upDateItemCall();
     }
 
     /**

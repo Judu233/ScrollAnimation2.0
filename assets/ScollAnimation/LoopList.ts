@@ -3,7 +3,7 @@
  * @description: 实现的滑动列表
  * @Date: 2021-03-16 14:13:23
  * @Author: judu233(769471424@qq.com)
- * @LastEditTime: 2021-03-17 14:13:33
+ * @LastEditTime: 2021-05-21 18:32:37
  * @LastEditors: judu233
  */
 
@@ -11,12 +11,14 @@ import CellItem from "./CellItem";
 const { ccclass, property } = cc._decorator;
 
 export interface ILoopListData {
-    index: string;
+    key: number,
+    state: boolean,
 }
 
 /**
  *  !!注意 cellItem的动画的[位置属性x,y,z]不能加缓动（其他属性可以缓动），否则会出现错位，如要修改缓动请直接缓动属性progress
  *  !!注意如果有节点的属性被设置在总的默认clip里运行，在脚本里动态设置该节点的属性将无效,请单独设置该节点的动画
+ *  !!例如默认clip有透明度，就不要代码修改透明度
  */
 @ccclass
 export default class LoopList extends cc.Component {
@@ -133,8 +135,14 @@ export default class LoopList extends cc.Component {
     /**存放cellitem的数组列表 */
     cellItemList: CellItem[] = [];
 
+    /**添加上时的回调 */
+    on_add: (item: CellItem, ...value: any[]) => void = null;
+    /**添加完成时的回调 */
+    on_addOver: (item: CellItem, ...value: any[]) => void = null;
+    /**刷新数据时的回调 */
+    on_upData: (cellItem: CellItem) => void = null;
     /**惯性滑动回调 */
-    inertiaOverCall: () => void;
+    on_inertiaOverCall: () => void = null;
 
     /**是否在触摸滑动 */
     isTouchMove = false;
@@ -160,39 +168,42 @@ export default class LoopList extends cc.Component {
     /**惯性结束后，如果有开启吸附的吸附结束回调 */
     private _inertiaAdsortionOverCall: () => void;
 
+    /**调试 */
+    private _debug = false;
+
     //#region index
     /**记录当前的全局实际的Index */
-    private curCenterIndex = 0;
+    curCenterIndex = 0;
     /**全局实际最小index */
-    private curMinIndex = 0;
+    curMinIndex = 0;
     /**全局实际最大Index */
-    private curMaxIndex = 0;
+    curMaxIndex = 0;
 
     /**全局中心虚拟index */
-    private fictitousCenterIndex = 0;
+    fictitousCenterIndex = 0;
     /**全局最大的虚拟Index */
-    private fictitousMaxIndex = 0;
+    fictitousMaxIndex = 0;
     /**全局最小的虚拟Index */
-    private fictitousMinIndex = 0;
-
+    fictitousMinIndex = 0;
     /**实际最大progess的item序列 （不超过1的progress）*/
     private _maxIndexOfProgress = 0;
     //#endregion
 
-    onLoad() {
-        //初始化存入数据--测试
-        // this._for(15)(i => this.ListData[i] = { index: `${i}` });
-        //初始化数据
-        // this.initCellsList();
-    }
+    // onLoad() {
+    //     //*初始化数据--测试
+    //     this._for(15)(i => this.ListData[i] = { state: 1, key: 3 });
+    //     //*初始化数据
+    //     this.initCellsList();
+    // }
 
     /**
-    * 初始化cellItem-> 计算progress->虚拟Index
-    * @memberof LoopList
-    */
+     * 初始化cellItem-> 计算progress->虚拟Index
+     * @memberof LoopList
+     */
     initCellsList() {
         try {
             //设置添加的根节点->存放cellItem的
+            cc.log(`initCellsList.init`);
             this.contentContainer = this.contentContainer == null ? this.node : this.contentContainer;
 
             this._maxIndexOfProgress = 0;
@@ -205,6 +216,7 @@ export default class LoopList extends cc.Component {
                 let progressPos = 0.5 + i / this.showCount;
                 let cellItem = this._getItemNode().getComponent(CellItem);
                 cellItem.init(this, progressPos, i);
+                this._debug && cc.log(`initCellsList.cellItem.init`);
                 if (progressPos <= 1) this._maxIndexOfProgress = i;
 
                 //存储item
@@ -214,10 +226,73 @@ export default class LoopList extends cc.Component {
             //设置对应index
             this._setAllIndex(this._maxIndexOfProgress);
             //自动吸附到最近
-            this._adsorptionTotarget(() => { });
+            this._adsorptionTotarget(() => {
+                if (this.ListData && this.ListData.length != 0) {
+                    //触发初始回调
+                    this.cellItemList.forEach(cellItem => {
+                        cc.log(`initCellsList.onAdd cellItem:${cellItem}`);
+                        this.on_add && this.on_add(cellItem, this.getCellItemData(cellItem).data, cellItem)
+                    });
+                    //触发添加结束回调
+                    let lastCellItem = this.cellItemList[this.cellItemList.length - 1];
+                    this.on_addOver && this.on_addOver(lastCellItem, this.ListData[lastCellItem.fictitousIndex], lastCellItem);
+
+                }
+            });
         } catch (error) {
             cc.error(`LoopList:初始化列表失败`, error);
-            return;
+            throw new Error(`LoopList：初始化列表失败！`);
+        }
+    }
+
+    /**
+     * 根据当前item获取对应的数据，如果传入item为空，默认获取中心虚拟index的数据
+     *
+     * @param {CellItem} [cellItem]
+     * @return {*} 
+     * @memberof LoopList
+     */
+    getCellItemData(cellItem?: CellItem): { data: ILoopListData, cellItem: CellItem } {
+        try {
+            let fictitousIndex = cellItem ? cellItem.fictitousIndex : this.fictitousCenterIndex;
+            let item = cellItem ? cellItem : this.getItemOfFictiousIndex(fictitousIndex);
+            return { data: this.ListData[fictitousIndex], cellItem: item };
+        } catch (error) {
+            cc.error(`LoopList：getCellItemData获取item失败,数据`, cellItem);
+            throw new Error(`LoopList：getCellItemData获取item失败!`);
+        }
+    }
+
+    /**
+     * 获取中心的item
+     *
+     * @return {*} CellItem
+     * @memberof LoopList
+     */
+    getCenterItem(): CellItem {
+        return this.cellItemList[this.curCenterIndex];
+    }
+
+    /**
+     * 根据虚拟index获取item
+     *
+     * @param {number} fictitousIndex 虚拟inde
+     * @return {*} CellItem
+     * @memberof LoopList
+     */
+    getItemOfFictiousIndex(fictitousIndex: number): CellItem {
+        return this.cellItemList.find(cellItem => cellItem.fictitousIndex == fictitousIndex);
+    }
+
+    clear() {
+        try {
+            this.cellItemList.forEach(cellItem => this._putItemNode(cellItem.node));
+            this.cellItemList.length = 0;
+            this.ListData.length = 0;
+            this.cellItemMap.clear();
+        } catch (error) {
+            cc.error(`清理列表出错：`, this);
+            throw new Error(`滑动列表清理数据出错！`);
         }
     }
 
@@ -240,9 +315,14 @@ export default class LoopList extends cc.Component {
         this._slideDis = 0;
         this._inertiaDt = 0;
         this._isInertiaSlide = false;
+        cc.log(`LoopList.onTouchStart...`)
     }
 
     onTouchMove(event: cc.Event.EventTouch) {
+        if (this.node.width == 0) {
+            cc.warn(`滑动节点的宽度不能为0`);
+            return;
+        }
         //计算滑动距离
         let delta = event.getDelta().x / this.node.width;
         //>0 右移动，<0 左移动
@@ -251,6 +331,7 @@ export default class LoopList extends cc.Component {
         delta += (this.isSwipeRight ? this.swipeValue : - this.swipeValue) / 1000;
         this._slideDis += delta;
         this.isTouchMove = true;
+        this._isInertiaSlide = false;
 
         //滑动模式->不用更新progress直接最后更新 吸附模式->更新item位置progress和显示数据
         if (!this.slideTouch) {
@@ -263,20 +344,20 @@ export default class LoopList extends cc.Component {
         if (this.inertia && !this._isInertiaSlide) {
             this._startingInertia(() => {
                 //停止惯性滚动
-                this.inertiaOverCall && this.inertiaOverCall();
+                this.on_inertiaOverCall && this.on_inertiaOverCall();
             }, () => {
-
+                cc.log(`LoopList.onTouchEnd._startingInertia of inertiaAdsortionOverCall...`)
             }, () => {
-
+                cc.log(`LoopList.onTouchEnd._startingInertia of adsorptionCall...`)
             });
         } else if (this.slideTouch) {
             this._slideToTarget(() => {
                 //停止滑动一个单位
-
+                cc.log(`LoopList.onTouchEnd._slideToTarget of overCall...`)
             });
         } else if (this.adsorptionFeatures && !this._isInertiaSlide) {
             this._adsorptionTotarget(() => {
-
+                cc.log(`LoopList.onTouchEnd._adsorptionTotarget of overCall...`)
             });
         }
     }
@@ -286,8 +367,16 @@ export default class LoopList extends cc.Component {
             this._updateInertia(dt);
         }
     }
-
     //#endregion周期函数
+
+    addData(data: ILoopListData) {
+        try {
+            this.ListData[this.ListData.length] = data;
+        } catch (error) {
+            cc.error(`LoopList:添加数据出错！`, data);
+            throw new Error(`LoopList:添加数据出错！`);
+        }
+    }
 
     /**
      * 切换滑动模式 --吸附滑动，卡片距离滑动，基本滑动
@@ -346,37 +435,6 @@ export default class LoopList extends cc.Component {
     }
 
     /**
-     * 重新初始化
-     * @memberof LoopList
-     */
-    reload() {
-        this.clear();
-        this.initCellsList();
-    }
-
-    /**
-     * 清理场景列表的节点
-     * @memberof LoopList
-     */
-    clear() {
-        this.cellItemList.forEach(cellItem => this._putItemNode(cellItem.node));
-        this.cellItemList.length = 0;
-        this.ListData.length = 0;
-        this.cellItemMap.clear();
-    }
-
-
-    /**
-     * 向数据列表里添加数据
-     * @param {ILoopListData} data 数据
-     * @memberof LoopList
-     */
-    addData(data: ILoopListData) {
-        let len = this.ListData.length - 1;
-        this.ListData[len + 1] = data;
-    }
-
-    /**
      * 更新item的数据
      * @private
      * @param {CellItem} [cellItem] 要更新虚拟index的item
@@ -385,8 +443,9 @@ export default class LoopList extends cc.Component {
     private updateCellItemData(cellItem?: CellItem) {
         if (cellItem) {
             try {
-                // cc.log(`更新cellIndex:${cellItem.index},cellItem:`, cellItem);
+                this._debug && cc.log(`更新cellIndex:${cellItem.index},cellItem:`, cellItem);
                 cellItem.updateItemData();
+                this.on_upData && this.on_upData(cellItem);
             } catch (error) {
                 cc.error(`更新cellItem出错`, cellItem);
             }
@@ -401,12 +460,13 @@ export default class LoopList extends cc.Component {
      * @memberof LoopList
      */
     private updateProgress(delta: number) {
+        delta = Number(delta.toFixed(5));
         this.cellItemList.forEach(cellItem => {
             //因为 cell 受到动画控制，progress只要取1的余数就自动循环了，从而避免复杂坐标运算。
             let progress = cellItem.progress;
             cellItem.progress = (progress + delta) % 1;
             cellItem._stopProgressAction();
-            // cc.log(`index:${cellItem.index},progress:${progress.toFixed(2)},虚拟index:${cellItem.fictitousIndex}`);
+            // this._debug && cc.log(`index:${cellItem.index},progress:${progress.toFixed(2)},虚拟index:${cellItem.fictitousIndex}`);
         });
     }
 
@@ -416,6 +476,7 @@ export default class LoopList extends cc.Component {
      * @memberof LoopList
      */
     private updateFictitousIndex() {
+        if (this.ListData == null || this.ListData.length == 0) return;
         let { centerIndex, maxIndex, minIndex } = this._getIndex();
         this.curCenterIndex = centerIndex;
 
@@ -435,9 +496,9 @@ export default class LoopList extends cc.Component {
             }
             this.fictitousCenterIndex = this.cellItemList[centerIndex].fictitousIndex;
             this.updateCellItemData(cellItem);
-            // cc.log(`小：${this.fictitousMinIndex}, 大：${this.fictitousMaxIndex}`);
+            // this._debug && cc.log(`小：${this.fictitousMinIndex}, 大：${this.fictitousMaxIndex}`);
         }
-        // cc.log(`\n`)
+        // this._debug &&  cc.log(`\n`)
     }
 
     //#region 
@@ -463,7 +524,7 @@ export default class LoopList extends cc.Component {
         let leftList = this.cellItemList.slice(maxProgressIndex + 1).reverse();
         leftList.forEach((cellItem, i) => {
             let index = this.fictitousCenterIndex - i - 1;
-            if (index <= 0) {
+            if (index < 0) {
                 index = --overIndex;
             }
             cellItem.initFitousIndex(index);
@@ -475,6 +536,7 @@ export default class LoopList extends cc.Component {
         this.curMaxIndex = rightList[rightList.length - 1].index;
         this.fictitousMaxIndex = rightList[rightList.length - 1].fictitousIndex;
         this.fictitousMinIndex = leftList[leftList.length - 1].fictitousIndex;
+        this._debug && cc.log(`LoopList.setAllIndex, rightList:${rightList}, leftList:${leftList}`);
     }
 
     /**存放item节点的对象池 */
@@ -494,6 +556,8 @@ export default class LoopList extends cc.Component {
             }
             if (!item.parent)
                 this.contentContainer.addChild(item);
+
+            this._debug && cc.log(`LoopList.getItemNode：`, item);
             return item;
         } catch (error) {
             cc.error(`LoopList_itemList获取节点失败`);
@@ -507,9 +571,10 @@ export default class LoopList extends cc.Component {
      * @memberof LoopList
      */
     private _putItemNode(item: cc.Node) {
-        if (item && item instanceof cc.Node)
+        if (item && item instanceof cc.Node) {
             this._itemNodePool.put(item);
-        else
+            this._debug && cc.log(`LoopList.putItem:`, item);
+        } else
             cc.warn(`LoopList_itemList存储节点失败！`, item);
     }
 
@@ -521,7 +586,7 @@ export default class LoopList extends cc.Component {
      * @memberof LoopList
      */
     private _slideToTarget(slideCall?: () => void) {
-        // cc.log(`滑动距离:${this._slideDis}`);
+        // this._debug && cc.log(`滑动距离:${this._slideDis}`);
         if (Math.abs(this._slideDis * 1000) >= this.slideDistence && this._isCanSlide) {
             this._isCanSlide = false;
             this.isSwipeRight = this._slideDis > 0;
@@ -545,17 +610,26 @@ export default class LoopList extends cc.Component {
             }
             this.fictitousCenterIndex = this.cellItemList[this.curCenterIndex].fictitousIndex;
             this.updateCellItemData(cellItem);
+
             //对列表容器中item进行移动
+            let promiseList = [];
             newList.forEach((cellItem) => {
                 let moveTarget = cellItem.progress + moveDistence;
-                // cc.log(`moveTarget: ${moveTarget.toFixed(1)}, progress:${cellItem.progress.toFixed(1)}`);
-                this._moveToTarget(cellItem, moveTarget, () => {
-                    this.isTouchMove = false;
-                    this._isCanSlide = true;
-                    this.updateFictitousIndex();
-                    slideCall && slideCall();
-                });
-            })
+                this._debug && cc.log(`moveTarget: ${moveTarget.toFixed(1)}, progress:${cellItem.progress.toFixed(1)}`);
+                promiseList.push(new Promise<void>(resolve => {
+                    this._moveToTarget(cellItem, moveTarget, resolve);
+                }));
+            });
+            let allProimse = Promise.all(promiseList).then(() => {
+                this.isTouchMove = false;
+                this._isCanSlide = true;
+                this.updateFictitousIndex();
+                slideCall && slideCall();
+            }).catch(() => {
+                throw new Error(`滑动列表错误！`);
+            });
+            this._setStopPromise(allProimse);
+            this._debug && cc.log(`LoopList.slideToTarget,slideDis:${this._slideDis}`);
             this._slideDis = 0;
         }
     }
@@ -571,6 +645,7 @@ export default class LoopList extends cc.Component {
         let newList = [...this.cellItemList.slice(centerIndex), ...this.cellItemList.slice(0, centerIndex)];
 
         this.fictitousCenterIndex = this.cellItemList[centerIndex].fictitousIndex;
+        let promiseList = [];
         newList.forEach((cellItem, index) => {
             let moveTarget = Math.abs(0.5 + index / this.showCount);
             moveTarget = moveTarget > 1 ? moveTarget % 1 : moveTarget;
@@ -579,15 +654,22 @@ export default class LoopList extends cc.Component {
             if (cellItem.progress < 0) {
                 cellItem.progress = 1 - Math.abs(cellItem.progress);
             }
-            // cc.log(`移动信息：index:${cellItem.index}, progress:${cellItem.progress.toFixed(1)}, moveTarget:${moveTarget.toFixed(1)}`);
-            this._moveToTarget(cellItem, moveTarget, () => {
-                this.isTouchMove = false;
-                this._isCanSlide = true;
-                this.updateFictitousIndex();
-                adsorptionCall && adsorptionCall();
-            });
+            this._debug && cc.log(`LoopList._adsorption移动信息：index:${cellItem.index}, progress:${cellItem.progress.toFixed(1)}, moveTarget:${moveTarget.toFixed(1)}`);
+            promiseList.push(new Promise<void>(resolve => {
+                this._moveToTarget(cellItem, moveTarget, resolve);
+            }));
         });
-        // cc.log(`-------`);
+        let self = this;
+        let allPromise = Promise.all(promiseList).then(() => {
+            self._debug && cc.log(`LoopList._adsorption回调`);
+            self.isTouchMove = false;
+            self._isCanSlide = true;
+            self.updateFictitousIndex();
+            adsorptionCall && adsorptionCall();
+        });
+        this._setStopPromise(allPromise);
+        this._debug && cc.log(`LoopList._adsorption`);
+        this._debug && cc.log(`-------`);
     }
 
     /**
@@ -607,6 +689,9 @@ export default class LoopList extends cc.Component {
             this._inertiaOverCall = inertiaOverCall;
             this._inertiaAdsortionOverCall = inertiaAdsortionOverCall;
             this.isSwipeRight = this._slideDis > 0;
+            // 修复dt等于0时为无穷大错误
+            if (this._inertiaDt < 0.02)
+                this._inertiaDt = 0.02;
             this._inertiaSpeed = Math.abs(this._slideDis / this._inertiaDt);
         } else if (this.adsorptionFeatures) {
             this._stopAllAnim();
@@ -624,12 +709,16 @@ export default class LoopList extends cc.Component {
      * @memberof LoopList
      */
     _updateInertia(dt: number) {
-        if (this._isInertiaSlide) {
-            if (this._inertiaSpeed <= 0.05) {
-                //速度小于0.01停止滚动
+        if (this._isInertiaSlide && this._inertiaDt > 0) {
+            if (this._inertiaSpeed <= 0.5) {
+                //速度小于指定值停止滚动
                 this._isInertiaSlide = false;
+                this.isTouchMove = false;
                 this._inertiaSpeed = 0;
+                this._inertiaDt = 0;
                 this._inertiaOverCall && this._inertiaOverCall();
+                this._debug && cc.log(`LoopList._updateInertia停止惯性滑动`);
+                this._debug && cc.log(`---------------------`);
                 if (this.adsorptionFeatures)
                     this._adsorptionTotarget(() => {
                         this._inertiaAdsortionOverCall && this._inertiaAdsortionOverCall();
@@ -637,11 +726,16 @@ export default class LoopList extends cc.Component {
                 return;
             }
             //开始惯性滑动
+            if (isNaN(this._inertiaSpeed)) {
+                cc.warn(`LoopList._updateInertia滑动速度不能为${this._inertiaSpeed}`);
+            }
             let attenuation = dt * this._inertiaSpeed * (this.isSwipeRight ? 1 : -1);
             this._inertiaSpeed = cc.misc.lerp(this._inertiaSpeed, 0, this.inertiaSpeedAttenuation / 100);
-            this.updateProgress(attenuation);
+            this._debug && cc.log(`LoopList._updateInertia开始惯性滑动,速度：${this._inertiaSpeed},attenuation: ${attenuation},inertiaDt:${this._inertiaDt}`);
             this.updateFictitousIndex();
+            this.updateProgress(attenuation);
         } else if (this.isTouchMove) {
+            this._debug && cc.log(`LoopList._updateInertia惯性滑动增长。。。。`);
             this._inertiaDt += dt;
         }
     }
@@ -685,7 +779,8 @@ export default class LoopList extends cc.Component {
         if (this.fictitousMaxIndex < 0)
             this.fictitousMaxIndex = this.ListData.length - 1;
 
-        cellItem.fictitousIndex = this.fictitousMinIndex;
+        if (cellItem)
+            cellItem.fictitousIndex = this.fictitousMinIndex;
         return cellItem;
     }
 
@@ -715,32 +810,38 @@ export default class LoopList extends cc.Component {
         if (this.fictitousMaxIndex > this.ListData.length - 1)
             this.fictitousMaxIndex = 0;
 
-        cellItem.fictitousIndex = this.fictitousMaxIndex;
+        if (cellItem)
+            cellItem.fictitousIndex = this.fictitousMaxIndex;
         return cellItem;
     }
 
     /**
-    *  移动元素item到目标
-    * @private
-    * @param {CellItem} cellItem 移动元素item
-    * @param {number} moveTarget 移动目标
-    * @param {() => void} [playOverCall] 移动回调
-    * @memberof LoopList
-    */
+     *  移动元素item到目标
+     * @private
+     * @param {CellItem} cellItem 移动元素item
+     * @param {number} moveTarget 移动目标
+     * @param {() => void} [playOverCall] 移动回调
+     * @memberof LoopList
+     */
     private _moveToTarget(cellItem: CellItem, moveTarget: number, playOverCall?: () => void) {
         //判断是否需要移动
         if (cellItem.progress == moveTarget) {
             playOverCall();
             return;
         }
+        if (isNaN(moveTarget))
+            return;
 
-        //进行吸附时间插值计算
+        //进行吸附时间插值计算,速度不能为0
+        if (this.adsorptionSpeed == 0)
+            this.adsorptionSpeed = 0.01;
         let distence = Math.abs(moveTarget - cellItem.progress) / this.adsorptionSpeed * 100;
         let x = this.adsorptionSection.x, y = this.adsorptionSection.y;
         cc.misc.clampf(x, 0, x);
         cc.misc.clampf(y, 0, y);
         let moveTime = cc.misc.lerp(x, y, distence);
         moveTime = cc.misc.clampf(moveTime, x, y);
+        this._debug && cc.log(`LoopList._moveToTarget.进行时间插值计算的结果：distence:${distence.toFixed(1)}, moveTime:${moveTime.toFixed(1)}`);
 
         //设置移动吸附动画
         cellItem._stopProgressAction();
@@ -755,13 +856,64 @@ export default class LoopList extends cc.Component {
             .start();
     }
 
+    /**promiseMap*/
+    private _promiseMap: Map<string, { resolve: () => void, reject: () => void, promise: Promise<any> }> = new Map();
     /**
-     * 停止列表中所有的动画
+     *   设置可以停止的promise
+     * @param stopPromise 要执行的promise 
+     */
+    private _setStopPromise(stopPromise: Promise<any>) {
+        let proObj: { resolve: () => void, reject: () => void, promise: Promise<any> } = <any>{};
+        let promise = new Promise<void>((resolve, reject) => {
+            proObj.resolve = resolve;
+            proObj.reject = reject;
+        });
+        //生成guid 来控制promise 
+        let guid = this._generateUUID();
+        this._promiseMap.set(guid, proObj);
+
+        //设置自动清除
+        stopPromise.then(() => {
+            if (this._promiseMap.has(guid)) {
+                this._promiseMap.delete(guid);
+            }
+        });
+        promise.then(() => {
+            if (this._promiseMap.has(guid)) {
+                this._promiseMap.delete(guid);
+            }
+        });
+        proObj.promise = Promise.race([stopPromise, promise]);
+    }
+
+    /**
+     * 生成唯一uuid
+     * @returns uuid
+     */
+    private _generateUUID() {
+        var d = new Date().getTime();
+        if (window.performance && typeof window.performance.now === "function") {
+            d += performance.now(); //use high-precision timer if available
+        }
+        var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            var r = (d + Math.random() * 16) % 16 | 0;
+            d = Math.floor(d / 16);
+            return (c == 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+        return uuid;
+    }
+
+    /**
+     * 停止列表中所有的动画和事件
      * @private
      * @memberof LoopList
      */
     private _stopAllAnim() {
         this.cellItemList.forEach(item => item._stopProgressAction());
+        //停止掉所有的promise 
+        this._promiseMap.forEach(promise => {
+            promise.resolve();
+        })
     }
 
     /**
@@ -774,27 +926,31 @@ export default class LoopList extends cc.Component {
         let centerIndex = 0, centerDis = 2;
         let maxIndex = 0, maxDis = 0;
         let minIndex = 0, minDis = 0;
-        for (let [index, item] of this.cellItemList.entries()) {
-            let progress = item.progress;
-            let centerProgress = Math.abs(progress + (progress > 0 ? -0.5 : 0.5));
-            if (centerProgress < centerDis) {
-                centerIndex = index;
-                centerDis = centerProgress;
+        try {
+            for (let [index, item] of this.cellItemList.entries()) {
+                let progress = item.progress;
+                let centerProgress = Math.abs(progress + (progress > 0 ? -0.5 : 0.5));
+                if (centerProgress < centerDis) {
+                    centerIndex = index;
+                    centerDis = centerProgress;
+                }
+                let maxProgress = Math.abs(progress + (progress > 0 ? 0 : 1));
+                if (maxProgress > maxDis) {
+                    maxIndex = index;
+                    maxDis = maxProgress;
+                }
+                let minProgress = Math.abs(progress + (progress > 0 ? -1 : 0));
+                if (minProgress > minDis) {
+                    minIndex = index;
+                    minDis = minProgress;
+                }
+                // this._debug && cc.log(`中心：${centerProgress.toFixed(1)}, 最大：${maxProgress.toFixed(1)}, 最小：${minProgress.toFixed(1)}\n`);
             }
-            let maxProgress = Math.abs(progress + (progress > 0 ? 0 : 1));
-            if (maxProgress > maxDis) {
-                maxIndex = index;
-                maxDis = maxProgress;
-            }
-            let minProgress = Math.abs(progress + (progress > 0 ? -1 : 0));
-            if (minProgress > minDis) {
-                minIndex = index;
-                minDis = minProgress;
-            }
-            // cc.log(`中心：${centerProgress.toFixed(1)}, 最大：${maxProgress.toFixed(1)}, 最小：${minProgress.toFixed(1)}\n`);
+        } catch (error) {
+            cc.error(`LoopList:获取cellItemList出错,this:`, this);
         }
-        // cc.log(`中心：${centerIndex}, 最小：${minIndex}, 最大：${maxIndex}`);
-        // cc.log(`---------------------`)
+        // this._debug && cc.log(`中心：${centerIndex}, 最小：${minIndex}, 最大：${maxIndex}`);
+        // this._debug && cc.log(`---------------------`)
         return { centerIndex, maxIndex, minIndex };
     }
     //#endregion
